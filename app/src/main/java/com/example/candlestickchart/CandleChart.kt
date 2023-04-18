@@ -30,75 +30,81 @@ fun CustomComponent(
     chartWidth: Dp = 300.dp,
     chartHeight: Dp = 300.dp,
     backgroundColor: Color = MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.disabled),
-    candlesWidth: Float = 0.04f
+    candlesWidth: Float = 0.04f,
+    candles: MutableList<MutableList<Float>>
 ) {
-    val candles = Array(9) { Array(4) { 0f } } //open, close, max, min
-    candles[0] = arrayOf(560f, 540f, 580f, 530f)     // red
-    candles[1] = arrayOf(540f, 510f, 550f, 500f)     // red
-    candles[2] = arrayOf(510f, 515f, 540f, 505f)     // green
-    candles[3] = arrayOf(515f, 530f, 535f, 513f)     // green
-    candles[4] = arrayOf(530f, 532f, 545f, 520f)     // green
-    candles[5] = arrayOf(532f, 506f, 537f, 502f)     // red
-    candles[6] = arrayOf(506f, 505f, 526f, 501f)     // red
-    candles[7] = arrayOf(505f, 544f, 562f, 503f)     // green
-    candles[8] = arrayOf(544f, 556f, 570f, 537f)     // green
+//    val candles = MutableList(9) { MutableList(4) { 0f } } //open, close, max, min
+//    candles[0] = mutableListOf(560f, 540f, 580f, 530f)     // red
+//    candles[1] = mutableListOf(540f, 510f, 550f, 500f)     // red
+//    candles[2] = mutableListOf(510f, 515f, 540f, 505f)     // green
+//    candles[3] = mutableListOf(515f, 530f, 535f, 513f)     // green
+//    candles[4] = mutableListOf(530f, 532f, 545f, 520f)     // green
+//    candles[5] = mutableListOf(532f, 506f, 537f, 502f)     // red
+//    candles[6] = mutableListOf(506f, 505f, 526f, 501f)     // red
+//    candles[7] = mutableListOf(505f, 544f, 562f, 503f)     // green
+//    candles[8] = mutableListOf(544f, 556f, 570f, 537f)     // green
 
-    var maxPrice = 0f
-    var minPrice = candles[0][3]
-    for (candle in candles) { //определяем максимальную и минимальную цену на графике
-        if (candle[2] > maxPrice) maxPrice = candle[2]
-        if (candle[3] < minPrice) minPrice = candle[3]
-    }
-    var currentPrice = candles[candles.size-1][1]
-    Log.d("debug", "maxPrice = $maxPrice")
-    Log.d("debug", "minPrice = $minPrice")
+    if (candles.isNotEmpty()) {
+        var maxPrice = 0f
+        var minPrice = candles[0][3]
+        //var count = 0
+        for (candle in candles) { //определяем максимальную и минимальную цену на графике
+            if (candle[2] > maxPrice) maxPrice = candle[2]
+            if (candle[3] < minPrice) minPrice = candle[3]
+            //count++
+            //if (count > 18) break
+        }
+        var currentPrice = candles[candles.size-1][1]
+        Log.d("debug", "maxPrice = $maxPrice")
+        Log.d("debug", "minPrice = $minPrice")
 
-    Column(modifier = Modifier
-        .size(width = chartWidth, height = chartHeight)
-        .background(backgroundColor)
-        .drawBehind {
-            //val chartSize = size / 1.25f
-            //val chartSize = size
-            val chartSize = Size(width = size.width * 0.9f, height = size.height * 0.94f)
-            backgroundCanvas(
-                candles = candles,
-                maxPrice = maxPrice,
-                minPrice = minPrice,
-                componentSize = chartSize,
-                //componentColor = backgroundColor,
-                candleWidth = candlesWidth,
-                greenCandleColor = Color(red = 0x00, green = 0xFF, blue = 0x00, alpha = 0xFF),
-                redCandleColor = Color(red = 0xFF, green = 0x00, blue = 0x00, alpha = 0xFF),
-                topOffset = size.height * 0.03f
-            )
-        }) {
-        Text( //максимальная цена на графике
-            text = "$maxPrice",
-            fontSize = chartHeight.dpToSp() / 40,
-            modifier = Modifier.offset(
-                x = chartWidth * 1.0f - chartHeight / 5,
-                y = chartHeight * 0.0f))
-        Text( //минимальная цена на графике
-            text = "$minPrice",
-            fontSize = chartHeight.dpToSp() / 40,
-            modifier = Modifier.offset(
-                x = chartWidth * 1.0f - chartHeight / 5,
-                y = chartHeight * 0.8f))
-        Text( //последняя цена
-            text = "$currentPrice",
-            fontSize = chartHeight.dpToSp() / 40,
-            modifier = Modifier.offset(
-                x = chartWidth * 1.0f - chartHeight / 5,
-                y = chartHeight * (maxPrice - candles[candles.size-1][1])/(maxPrice-minPrice)-chartHeight *0.225f))
-                //y = -chartHeight *0.2f))
+        Column(modifier = Modifier
+            .size(width = chartWidth, height = chartHeight)
+            .background(backgroundColor)
+            .drawBehind {
+                //val chartSize = size / 1.25f
+                //val chartSize = size
+                val chartSize = Size(width = size.width * 0.9f, height = size.height * 0.94f)
+                backgroundCanvas(
+                    candles = candles,
+                    maxPrice = maxPrice,
+                    minPrice = minPrice,
+                    componentSize = chartSize,
+                    //componentColor = backgroundColor,
+                    candleWidth = candlesWidth,
+                    greenCandleColor = Color(red = 0x00, green = 0xFF, blue = 0x00, alpha = 0xFF),
+                    redCandleColor = Color(red = 0xFF, green = 0x00, blue = 0x00, alpha = 0xFF),
+                    topOffset = size.height * 0.03f
+                )
+            }) {
+            Text( //максимальная цена на графике
+                text = "$maxPrice",
+                fontSize = chartHeight.dpToSp() / 40,
+                modifier = Modifier.offset(
+                    x = chartWidth * 1.0f - chartHeight / 5,
+                    y = chartHeight * 0.0f))
+            Text( //минимальная цена на графике
+                text = "$minPrice",
+                fontSize = chartHeight.dpToSp() / 40,
+                modifier = Modifier.offset(
+                    x = chartWidth * 1.0f - chartHeight / 5,
+                    y = chartHeight * 0.8f))
+            Text( //последняя цена
+                text = "$currentPrice",
+                fontSize = chartHeight.dpToSp() / 40,
+                modifier = Modifier.offset(
+                    x = chartWidth * 1.0f - chartHeight / 5,
+                    y = chartHeight * (maxPrice - candles[candles.size-1][1])/(maxPrice-minPrice)-chartHeight *0.225f))
+                    //y = -chartHeight *0.2f))
 
-        //Log.d("debug", "test = " + (maxPrice - candles[candles.size-1][1])/(maxPrice-minPrice))
+            //Log.d("debug", "test = " + (maxPrice - candles[candles.size-1][1])/(maxPrice-minPrice))
+        }
     }
 }
 
 
 fun DrawScope.backgroundCanvas(
-    candles: Array<Array<Float>>,
+    candles: MutableList<MutableList<Float>>,
     maxPrice: Float,
     minPrice: Float,
     componentSize: Size,
@@ -109,6 +115,7 @@ fun DrawScope.backgroundCanvas(
     topOffset: Float
 ) {
     for (i in candles.indices) {
+        if (i > 18) break
 //        Log.d("debug", "candle index = " + i)
 //        Log.d("debug", "offset y = " + (componentSize.height - (candles[i][0]-minPrice)/(maxPrice-minPrice)*componentSize.height))
 //        Log.d("debug", "size height = " + (candles[i][0]-candles[i][1])/(maxPrice-minPrice)*componentSize.height)
@@ -180,8 +187,8 @@ internal fun Float.pxToDp(): Dp {
     return (this / LocalDensity.current.density).dp
 }
 
-@Composable
-@Preview(showBackground = true)
-fun CustomComponentPreview() {
-    CustomComponent()
-}
+//@Composable
+//@Preview(showBackground = true)
+//fun CustomComponentPreview() {
+//    CustomComponent()
+//}
