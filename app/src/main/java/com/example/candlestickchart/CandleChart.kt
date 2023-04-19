@@ -1,12 +1,11 @@
 package com.example.candlestickchart
 
-
+import android.content.res.Resources
 import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.ContentAlpha
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
@@ -24,9 +23,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.constraintlayout.compose.ConstraintLayout
+import kotlin.math.ceil
 
 @Composable
-fun CustomComponent(
+fun CandlestickChartComponent(
     chartWidth: Dp = 300.dp,
     chartHeight: Dp = 300.dp,
     backgroundColor: Color = MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.disabled),
@@ -58,47 +59,83 @@ fun CustomComponent(
         Log.d("debug", "maxPrice = $maxPrice")
         Log.d("debug", "minPrice = $minPrice")
 
-        Column(modifier = Modifier
-            .size(width = chartWidth, height = chartHeight)
-            .background(backgroundColor)
-            .drawBehind {
-                //val chartSize = size / 1.25f
-                //val chartSize = size
-                val chartSize = Size(width = size.width * 0.9f, height = size.height * 0.94f)
-                backgroundCanvas(
-                    candles = candles,
-                    maxPrice = maxPrice,
-                    minPrice = minPrice,
-                    componentSize = chartSize,
-                    //componentColor = backgroundColor,
-                    candleWidth = candlesWidth,
-                    greenCandleColor = Color(red = 0x00, green = 0xFF, blue = 0x00, alpha = 0xFF),
-                    redCandleColor = Color(red = 0xFF, green = 0x00, blue = 0x00, alpha = 0xFF),
-                    topOffset = size.height * 0.03f
-                )
-            }) {
+        Log.d("debug", "chartWidth = $chartWidth")
+        Log.d("debug", "chartWidthToString = ${chartWidth.toString().removeSuffix(".dp").toFloat().dpToFloat()}")
+
+        Log.d("debug", "test = ${(candles.size * candlesWidth * Resources.getSystem().displayMetrics.widthPixels).FloatToDp().dp}")
+        Log.d("debug", "scale = ${Resources.getSystem().displayMetrics.density}")
+
+        ConstraintLayout() {
+            Column(modifier = Modifier
+                .size(width = chartWidth, height = chartHeight)
+                .background(backgroundColor)
+                .horizontalScroll(rememberScrollState())
+                //.width(2000.dp)
+                .width((candles.size * (candlesWidth + 0.01f) * Resources.getSystem().displayMetrics.widthPixels).FloatToDp().dp)
+                .drawBehind {
+                    //val chartSize = size / 1.25f
+                    //val chartSize = size
+                    val chartSize = Size(width = size.width * 0.9f, height = size.height * 0.94f)
+                    backgroundCanvas(
+                        candles = candles,
+                        maxPrice = maxPrice,
+                        minPrice = minPrice,
+                        componentSize = chartSize,
+                        //componentColor = backgroundColor,
+                        candleWidth = candlesWidth,
+                        greenCandleColor = Color(red = 0x00, green = 0xFF, blue = 0x00, alpha = 0xFF),
+                        redCandleColor = Color(red = 0xFF, green = 0x00, blue = 0x00, alpha = 0xFF),
+                        topOffset = size.height * 0.03f,
+                        chartWidth = chartWidth
+                            .toString()
+                            .removeSuffix(".dp")
+                            .toFloat()
+                            .dpToFloat()
+                    )
+                }) {
+//            Text( //максимальная цена на графике
+//                text = "$maxPrice",
+//                fontSize = chartHeight.dpToSp() / 40,
+//                modifier = Modifier.offset(
+//                    x = chartWidth * 1.0f - chartHeight / 5,
+//                    y = chartHeight * 0.0f))
+//            Text( //минимальная цена на графике
+//                text = "$minPrice",
+//                fontSize = chartHeight.dpToSp() / 40,
+//                modifier = Modifier.offset(
+//                    x = chartWidth * 1.0f - chartHeight / 5,
+//                    y = chartHeight * 0.8f))
+//            Text( //последняя цена
+//                text = "$currentPrice",
+//                fontSize = chartHeight.dpToSp() / 40,
+//                modifier = Modifier.offset(
+//                    x = chartWidth * 1.0f - chartHeight / 5,
+//                    y = chartHeight * (maxPrice - candles[candles.size-1][1])/(maxPrice-minPrice)-chartHeight *0.225f))
+//                    //y = -chartHeight *0.2f))
+
+                //Log.d("debug", "test = " + (maxPrice - candles[candles.size-1][1])/(maxPrice-minPrice))
+            }
             Text( //максимальная цена на графике
                 text = "$maxPrice",
                 fontSize = chartHeight.dpToSp() / 40,
                 modifier = Modifier.offset(
-                    x = chartWidth * 1.0f - chartHeight / 5,
+                    x = chartWidth * 1.0f - chartHeight / 4.5f,
                     y = chartHeight * 0.0f))
             Text( //минимальная цена на графике
                 text = "$minPrice",
                 fontSize = chartHeight.dpToSp() / 40,
                 modifier = Modifier.offset(
-                    x = chartWidth * 1.0f - chartHeight / 5,
-                    y = chartHeight * 0.8f))
+                    x = chartWidth * 1.0f - chartHeight / 4.5f,
+                    y = chartHeight * 0.9f))
             Text( //последняя цена
                 text = "$currentPrice",
                 fontSize = chartHeight.dpToSp() / 40,
                 modifier = Modifier.offset(
-                    x = chartWidth * 1.0f - chartHeight / 5,
-                    y = chartHeight * (maxPrice - candles[candles.size-1][1])/(maxPrice-minPrice)-chartHeight *0.225f))
-                    //y = -chartHeight *0.2f))
-
-            //Log.d("debug", "test = " + (maxPrice - candles[candles.size-1][1])/(maxPrice-minPrice))
+                    x = chartWidth * 1.0f - chartHeight / 4.5f,
+                    y = chartHeight * (maxPrice - candles[candles.size-1][1])/(maxPrice-minPrice)))
+            //y = -chartHeight *0.2f))
         }
+
     }
 }
 
@@ -112,11 +149,12 @@ fun DrawScope.backgroundCanvas(
     candleWidth: Float,
     greenCandleColor: Color,
     redCandleColor: Color,
-    topOffset: Float
+    topOffset: Float,
+    chartWidth: Float
 ) {
     for (i in candles.indices) {
-        if (i > 18) break
-//        Log.d("debug", "candle index = " + i)
+        //if (i > 18) break
+//        Log.d("debug", "candle index = " + componentSize.width)
 //        Log.d("debug", "offset y = " + (componentSize.height - (candles[i][0]-minPrice)/(maxPrice-minPrice)*componentSize.height))
 //        Log.d("debug", "size height = " + (candles[i][0]-candles[i][1])/(maxPrice-minPrice)*componentSize.height)
 
@@ -124,38 +162,38 @@ fun DrawScope.backgroundCanvas(
             drawRect( //тело свечи
                 color = greenCandleColor,
                 topLeft = Offset(
-                    x = (candleWidth+0.01f)*i*componentSize.width,
+                    x = (candleWidth+0.01f)*i*chartWidth,
                     y = componentSize.height - (candles[i][0]-minPrice)/(maxPrice-minPrice)*componentSize.height + topOffset),
                 size = Size(
-                    width = candleWidth*componentSize.width,
+                    width = candleWidth*chartWidth,
                     height = (candles[i][0]-candles[i][1])/(maxPrice-minPrice)*componentSize.height),
             )
             drawRect( //тень свечи
                 color = greenCandleColor,
                 topLeft = Offset(
-                    x = (candleWidth+0.01f)*i*componentSize.width+candleWidth*0.45f*componentSize.width,
+                    x = (candleWidth+0.01f)*i*chartWidth+candleWidth*0.45f*chartWidth,
                     y = componentSize.height - (candles[i][2]-minPrice)/(maxPrice-minPrice)*componentSize.height + topOffset),
                 size = Size(
-                    width = candleWidth*componentSize.width*0.1f,
+                    width = candleWidth*chartWidth*0.1f,
                     height = (candles[i][2]-candles[i][3])/(maxPrice-minPrice)*componentSize.height),
             )
         } else if (candles[i][0] > candles[i][1]) { //красная свеча
             drawRect( //тело свечи
                 color = redCandleColor,
                 topLeft = Offset(
-                    x = (candleWidth+0.01f)*i*componentSize.width,
+                    x = (candleWidth+0.01f)*i*chartWidth,
                     y = componentSize.height - (candles[i][0]-minPrice)/(maxPrice-minPrice)*componentSize.height + topOffset),
                 size = Size(
-                    width = candleWidth*componentSize.width,
+                    width = candleWidth*chartWidth,
                     height = (candles[i][0]-candles[i][1])/(maxPrice-minPrice)*componentSize.height),
             )
             drawRect( //тень свечи
                 color = redCandleColor,
                 topLeft = Offset(
-                    x = (candleWidth+0.01f)*i*componentSize.width+candleWidth*0.45f*componentSize.width,
+                    x = (candleWidth+0.01f)*i*chartWidth+candleWidth*0.45f*chartWidth,
                     y = componentSize.height - (candles[i][2]-minPrice)/(maxPrice-minPrice)*componentSize.height + topOffset),
                 size = Size(
-                    width = candleWidth*componentSize.width*0.1f,
+                    width = candleWidth*chartWidth*0.1f,
                     height = (candles[i][2]-candles[i][3])/(maxPrice-minPrice)*componentSize.height),
             )
         }
@@ -185,6 +223,18 @@ internal fun Dp.dpToSp(): TextUnit {
 @Composable
 internal fun Float.pxToDp(): Dp {
     return (this / LocalDensity.current.density).dp
+}
+
+//@Composable
+internal fun Float.dpToFloat(): Float {
+    val scale = Resources.getSystem().displayMetrics.density
+    return (this * scale)
+}
+
+//@Composable
+internal fun Float.FloatToDp(): Float {
+    val scale = Resources.getSystem().displayMetrics.density
+    return (this / scale)
 }
 
 //@Composable
