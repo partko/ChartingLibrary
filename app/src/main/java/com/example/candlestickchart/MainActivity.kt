@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             CandlestickChartTheme {
                 val value = remember { mutableStateOf(mutableListOf<MutableList<Float>>()) }
-                requestData("AAPL", "1", "hour", "2023-02-01", "2023-03-07", "5000", value)
+                requestData("AAPL", "1", "hour", "2023-02-01", "2023-03-07", "50000", value)
                 // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
