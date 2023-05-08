@@ -2,6 +2,8 @@ package com.example.candlestickchart
 
 import android.os.AsyncTask
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.util.Size
 import androidx.activity.ComponentActivity
@@ -26,27 +28,42 @@ import com.android.volley.toolbox.Volley
 import com.example.candlestickchart.ui.theme.CandlestickChartTheme
 import org.json.JSONException
 import org.json.JSONObject
+import kotlin.random.Random
 import java.text.SimpleDateFormat
 import java.util.*
 
 const val API_KEY = "fVYFzwwxhgYGobQCWje8h9oYE5pufXvm"
 
 class MainActivity : ComponentActivity() {
+//    lateinit var mainHandler: Handler
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             CandlestickChartTheme {
-                val ticker = remember{mutableStateOf("AAPL")}
-                val from = remember{mutableStateOf("2023-02-01")}
-                val to = remember{mutableStateOf("2023-04-07")}
+                val ticker = remember{mutableStateOf("NVDA")}
+                val from = remember{mutableStateOf("2023-01-01")}
+                val to = remember{mutableStateOf("2023-05-05")}
                 val timespan = remember{mutableStateOf("hour")}
 
                 val candles = remember { mutableStateOf(mutableListOf<MutableList<Float>>()) }
+                //val candles = remember { mutableStateOf(generateRandomData(220, 260, 500)) }
+                //candles.value = generateRandomData(220, 260, 500, candles)
+//                var randomCandles = mutableListOf<MutableList<Float>>()
+//                randomCandles = generateRandomData(220, 260, 500)
+
                 val timestamps = remember { mutableStateOf(mutableListOf<MutableList<String>>()) }
                 val timeFormat = remember { mutableStateOf(listOf<String>()) }
 
-                //requestData("AAPL", "1", "hour", "2023-02-01", "2023-04-07", "50000", value)
-                //requestData(ticker.value, "1", timespan.value, from.value, to.value, "50000", value)
+//                val updateTask = object : Runnable {
+//                    override fun run() {
+//                        mainHandler.postDelayed(this, 1000)
+//                        addRandomCandle(220, 260, randomCandles)
+//                        candles.value = randomCandles
+//                    }
+//                }
+//                mainHandler = Handler(Looper.getMainLooper())
+//                mainHandler.post(updateTask)
+
                 // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -112,18 +129,27 @@ class MainActivity : ComponentActivity() {
                             timeFormat = timeFormat.value,
                             selectedTimeFormat = listOf("2", " ", "1", " ", "3", ":", "4"),
                             minIndent = 12,
+                            dateOffset = 1,
                             chartWidth = GetWidth(),
                             //rightBarWidth = 50.dp,
                             //candleWidth = 25.dp,
                             //gapWidth = 8.dp,
                             //significantDigits = 2,
                             //bottomBarHeight = 20.dp,
+                            //priceLineThickness = 1.dp,
+                            //priceLineStyle = floatArrayOf(30f, 10f, 10f, 10f),
+                            //selectedLineThickness = 1.dp,
+                            //dojiCandleThickness = 1.dp,
+                            //selectedLineStyle = floatArrayOf(10f, 10f),
+                            //endButtonSize = 40.dp,
                             //backgroundColor = Color.Gray,
                             //rightBarColor = Color.LightGray,
                             //textColor = Color.Red,
                             //priceLineColor = Color.Green,
                             //positiveCandleColor = Color.Magenta,
-                            //negativeCandleColor = Color.Blue
+                            //negativeCandleColor = Color.Blue,
+                            //dojiCandleColor = Color.Yellow,
+                            //endButtonColor = Color.Red
                         )
                         Text(text = "", modifier = Modifier.height(2.dp))
                         CandlestickChartComponent(
@@ -147,14 +173,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    val simpleDateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm:ss", Locale.ENGLISH)
-    val hourDateFormat = SimpleDateFormat("dd MMM", Locale.ENGLISH)
     val dateFormat = SimpleDateFormat("yyyy MMM dd HH mm ss", Locale.ENGLISH)
 
     private fun getDateString(time: String) : MutableList<String> = stringToWords(dateFormat.format(time.toLong()))
 
     private fun stringToWords(s : String) = s.trim().splitToSequence(' ')
-        .filter { it.isNotEmpty() } // or: .filter { it.isNotBlank() }
+        .filter { it.isNotEmpty() }
         .toMutableList()
 
 
@@ -184,14 +208,12 @@ class MainActivity : ComponentActivity() {
                         timeFormat.value = listOf<String>()
                     }
                 }
-
             },
             {
                 error -> Log.d("debug", "Request Error: $error")
             }
         )
         queue.add(request)
-
     }
 
     private fun parseData(result: String): Pair<MutableList<MutableList<Float>>, MutableList<MutableList<String>>> {
@@ -226,6 +248,85 @@ class MainActivity : ComponentActivity() {
             Log.d("debug", row.toString())
         }
     }
+
+//    private fun generateRandomData(startPrice: Int, endPrice: Int, candleCount: Int): MutableList<MutableList<Float>> {
+//        val priceRange = endPrice - startPrice
+//        var prevCandleClose = (startPrice..endPrice).random()
+//        var candleHeight = 0f
+//        var topShadowHeight = 0f
+//        var bottomShadowHeight = 0f
+//        var randomSeed1 = 0
+//        var randomSeed2 = 0
+//        var randomSeed3 = 0
+//        var candleType = false
+//        var open = 0
+//        var close = 0
+//        var max = 0
+//        var min = 0
+//        var randomData = MutableList(0) { MutableList(4) { 0f } } //open, close, max, min
+//        for (i in 1..candleCount) {
+//            randomSeed1 = (0..1000).random()
+//            randomSeed2 = (0..10).random()
+//            randomSeed3 = (0..10).random()
+//            candleType = Random.nextBoolean()
+//            when (randomSeed1) {
+//                in 0..300 -> candleHeight = priceRange * 0.1f
+//                in 301..600 -> candleHeight = priceRange * 0.2f
+//                in 601..700 -> candleHeight = priceRange * 0.3f
+//                in 701..750 -> candleHeight = priceRange * 0.35f
+//                in 751..800 -> candleHeight = priceRange * 0.4f
+//                in 801..850 -> candleHeight = priceRange * 0.05f
+//                in 851..900 -> candleHeight = priceRange * 0.03f
+//                in 901..950 -> candleHeight = priceRange * 0.02f
+//                in 951..990 -> candleHeight = priceRange * 0.01f
+//                in 991..1000 -> candleHeight = priceRange * 0.001f
+//                else -> { }
+//            }
+//            when (randomSeed2) {
+//                in 0..3 -> topShadowHeight = candleHeight * 1.1f
+//                in 4..5 -> topShadowHeight = candleHeight * 1.2f
+//                in 6..7 -> topShadowHeight = candleHeight * 1.3f
+//                8 -> topShadowHeight = candleHeight * 1.05f
+//                9 -> topShadowHeight = candleHeight * 1.01f
+//                10 -> topShadowHeight = candleHeight
+//                else -> { }
+//            }
+//            when (randomSeed3) {
+//                in 0..3 -> bottomShadowHeight = candleHeight * 1.1f
+//                in 4..5 -> bottomShadowHeight = candleHeight * 1.2f
+//                in 6..7 -> bottomShadowHeight = candleHeight * 1.3f
+//                8 -> bottomShadowHeight = candleHeight * 1.05f
+//                9 -> bottomShadowHeight = candleHeight * 1.01f
+//                10 -> bottomShadowHeight = candleHeight
+//                else -> { }
+//            }
+//            if (candleType) { //green
+//                open = prevCandleClose
+//                close = (prevCandleClose..prevCandleClose + candleHeight.toInt()).random()
+//                max = (close..close+topShadowHeight.toInt()).random()
+//                min = (open - bottomShadowHeight.toInt()..open).random()
+//
+//            } else { //red
+//                open = prevCandleClose
+//                close = (prevCandleClose - candleHeight.toInt()..prevCandleClose).random()
+//                max = (open..open + topShadowHeight.toInt()).random()
+//                min = (close - bottomShadowHeight.toInt()..close).random()
+//            }
+//            randomData.add(mutableListOf(
+//                open.toFloat(),
+//                close.toFloat(),
+//                max.toFloat(),
+//                min.toFloat(),
+//            ))
+//            prevCandleClose = randomData[randomData.size-1][1].toInt()
+//        }
+//        return randomData
+//    }
+//
+//    private fun addRandomCandle(startPrice: Int, endPrice: Int, candlesList: MutableList<MutableList<Float>>) {
+//        candlesList.add(generateRandomData(startPrice, endPrice, 1)[0])
+//    }
+
 }
 
 //private fun getDateTime(s: String): String? {
@@ -273,13 +374,10 @@ fun GetHeight() : Dp {
     return screenHeight
 }
 
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreview() {
-    CandlestickChartTheme {
-        Column {
-
-        }
-
-    }
-}
+//@Preview(showBackground = true)
+//@Composable
+//fun DefaultPreview() {
+//    CandlestickChartTheme {
+//
+//    }
+//}
