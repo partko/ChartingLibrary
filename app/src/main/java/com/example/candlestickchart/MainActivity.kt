@@ -11,8 +11,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
@@ -22,19 +24,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.modifier.modifierLocalConsumer
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.core.content.ContentProviderCompat.requireContext
 import com.android.volley.Request
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import com.example.candlestickchart.ui.theme.CandlestickChartTheme
+import com.example.chartinglibrary.TimeData
+import com.example.chartinglibrary.candle.CandlestickChart
+import com.example.chartinglibrary.convertTime
+import com.example.chartinglibrary.getTimeIndex
 import org.json.JSONException
 import org.json.JSONObject
 import kotlin.random.Random
@@ -45,6 +55,86 @@ const val API_KEY = "fVYFzwwxhgYGobQCWje8h9oYE5pufXvm"
 
 class MainActivity : ComponentActivity() {
     lateinit var mainHandler: Handler
+
+    private fun requestData(
+        ticker: String,
+        multiplier: String,
+        timespan: String,
+        from: String,
+        to: String,
+        limit: String,
+        candlesList: MutableState<MutableList<List<Float>>>,
+        timestampsList: MutableState<MutableList<MutableList<String>>>,
+        timeFormat: MutableState<List<String>>,
+        reDraw: MutableState<Boolean>) {
+        //https://api.polygon.io/v2/aggs/ticker/AAPL/range/1/day/2023-01-09/2023-01-09?adjusted=true&sort=asc&limit=120&apiKey=fVYFzwwxhgYGobQCWje8h9oYE5pufXvm
+        val url = "https://api.polygon.io/v2/aggs/ticker/$ticker/range/$multiplier/$timespan/$from/$to?adjusted=true&sort=asc&limit=$limit&apiKey=$API_KEY"
+        val queue = Volley.newRequestQueue(this)
+        val request = StringRequest(
+            Request.Method.GET,
+            url,
+            {
+                //result -> Log.d("debug", "Result: $result")
+                //result -> parseData(result)
+                    result ->
+                val (list, list1) = parseData(result)
+                candlesList.value = list
+                timestampsList.value = list1
+                when (timespan) {
+                    "minute" -> timeFormat.value = listOf<String>(TimeData.HOUR.index, ":00")
+                    "hour" -> timeFormat.value = listOf<String>(TimeData.DAY.index, " ", TimeData.MONTH_SHORT.index)
+                    "day" -> timeFormat.value = listOf<String>(TimeData.MONTH_FULL.index)
+                    "week" -> timeFormat.value = listOf<String>(TimeData.MONTH_SHORT.index)
+                    "month" -> timeFormat.value = listOf<String>(TimeData.YEAR.index)
+                    "quarter" -> timeFormat.value = listOf<String>(TimeData.YEAR.index)
+                    "year" -> timeFormat.value = listOf<String>(TimeData.YEAR.index)
+                    else -> {
+                        timeFormat.value = listOf<String>()
+                    }
+                }
+                reDraw.value = !reDraw.value
+            },
+            {
+                    error -> Log.d("debug", "Request Error: $error")
+            }
+        )
+        queue.add(request)
+    }
+
+
+    private fun parseData(result: String): Pair<MutableList<List<Float>>, MutableList<MutableList<String>>> {
+        val root = JSONObject(result)
+        try {
+            val results = root.getJSONArray("results")
+            val candles = MutableList(0) { List(4) { 0f } } //open, close, max, min
+            Log.d("debug", results.length().toString())
+            val timestamps = MutableList(0) { MutableList(4) { "" } }
+            for (i in 0 until results.length()) {
+                val currentCandle = results.getJSONObject(i)
+                candles.add(listOf(
+                    currentCandle.getString("o").toFloat(),
+                    currentCandle.getString("c").toFloat(),
+                    currentCandle.getString("h").toFloat(),
+                    currentCandle.getString("l").toFloat(),))
+                timestamps.add(convertTime(currentCandle.getString("t")))
+            }
+            //Log.d("debug", "Result: ${candles[1][0]}")
+            //showList(candles)
+//            //больше 250000 пикселей - ошибка
+//            if (candles.size > 8000) candles.removeRange(8000..candles.size)
+            if (candles.size > 2000) candles.removeRange(2000..candles.size)
+            return Pair(candles, timestamps)
+        } catch (e: JSONException) {
+            return Pair(mutableListOf<List<Float>>(), mutableListOf<MutableList<String>>())
+        }
+    }
+
+    fun showList(list: MutableList<MutableList<Float>>) {
+        for (row in list) {
+            Log.d("debug", row.toString())
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -64,26 +154,13 @@ class MainActivity : ComponentActivity() {
                 val candleCount = remember{mutableStateOf("500")}
                 val generateNew = remember{mutableStateOf("true")}
 
-                val candles = remember { mutableStateOf(mutableListOf<MutableList<Float>>()) }
+                val candles = remember { mutableStateOf(mutableListOf<List<Float>>()) }
                 val timestamps = remember { mutableStateOf(mutableListOf<MutableList<String>>()) }
                 val timeFormat = remember { mutableStateOf(listOf<String>()) }
+                val selectedTimeFormat = remember { mutableStateOf(listOf<String>()) }
 
-                //val candles = remember { mutableStateOf(generateRandomData(220, 260, 500)) }
-//                candles.value = generateRandomData(startPrice.value.toInt(), endPrice.value.toInt(), candleCount.value.toInt())
-//                var randomCandles = mutableListOf<MutableList<Float>>()
-//                randomCandles = generateRandomData(220, 260, 500)
-//
-//
-//                val updateTask = object : Runnable {
-//                    override fun run() {
-//                        mainHandler.postDelayed(this, 1000)
-//                        addRandomCandle(startPrice.value.toInt(), endPrice.value.toInt(), randomCandles)
-//                        candles.value = randomCandles
-//                        reDraw.value = !reDraw.value
-//                    }
-//                }
                 mainHandler = Handler(Looper.getMainLooper())
-//                mainHandler.post(updateTask)
+
                 val chartWidth = remember{mutableStateOf(1f)}
                 val chartHeight = remember{mutableStateOf(0.5f)}
                 val rightBarWidth = remember{mutableStateOf(50.dp)}
@@ -94,8 +171,12 @@ class MainActivity : ComponentActivity() {
                 val selectedLineThickness = remember{mutableStateOf(1.dp)}
                 val dojiCandleThickness = remember{mutableStateOf(1.dp)}
                 val endButtonSize = remember{mutableStateOf(20.dp)}
-                val significantDigits = remember{mutableStateOf(2)}
+                val topOffset = remember{mutableStateOf(8.dp)}
                 val rightBarTextSize = remember{mutableStateOf(10)}
+                val significantDigits = remember{mutableStateOf(2)}
+                val priceTagsCount = remember{mutableStateOf(4)}
+                val minIndent = remember{mutableStateOf(12)}
+                val dateOffset = remember{mutableStateOf(1)}
 
                 val backgroundColor = remember{mutableStateOf(listOf("41", "49", "51", "255"))}
                 val rightBarColor = remember{mutableStateOf(listOf("37", "44", "46", "255"))}
@@ -109,7 +190,6 @@ class MainActivity : ComponentActivity() {
                 val separatorColor = remember{mutableStateOf(listOf("71", "74", "81", "255"))}
 
 
-
                 // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -118,19 +198,21 @@ class MainActivity : ComponentActivity() {
                     Column(modifier = Modifier
                         .verticalScroll(rememberScrollState())
                     ) {
-                        CandlestickChartComponent(
+                        CandlestickChart(
                             candles = candles.value,
                             timestamps = timestamps.value,
                             timeFormat = timeFormat.value,
-                            selectedTimeFormat = listOf("2", " ", "1", " ", "3", ":", "4"),
-                            minIndent = 12,
-                            dateOffset = 1,
+                            selectedTimeFormat = selectedTimeFormat.value,
+                            priceTagsCount = priceTagsCount.value,
+                            minIndent = minIndent.value,
+                            dateOffset = dateOffset.value,
                             chartWidth = GetWidth() * chartWidth.value,
                             chartHeight = GetHeight() * chartHeight.value,
                             rightBarWidth = rightBarWidth.value,
                             bottomBarHeight = bottomBarHeight.value,
                             candleWidth = candleWidth.value,
                             gapWidth = gapWidth.value,
+                            topOffset = topOffset.value,
                             rightBarTextSize = rightBarTextSize.value,
                             significantDigits = significantDigits.value,
                             priceLineThickness = priceLineThickness.value,
@@ -156,20 +238,39 @@ class MainActivity : ComponentActivity() {
                         Row() {
                             TextField(
                                 modifier = Modifier
-                                    .width(GetWidth() / 4),
+                                    .width(GetWidth() / 2),
                                 label = {Text("Ticker")},
                                 value = ticker.value,
                                 onValueChange = { newText -> ticker.value = newText },
                                 placeholder = { Text("AAPL") }
                             )
-                            TextField(
-                                modifier = Modifier
-                                    .width(GetWidth() / 4 * 3),
-                                label = {Text("Timespan")},
-                                value = timespan.value,
-                                onValueChange = {newText -> timespan.value = newText},
-                                placeholder = { Text("hour day week month quarter year") }
-                            )
+                            var expandedTimespan by remember { mutableStateOf(false) }
+                            val timespanList = listOf("minute", "hour", "day", "week", "month", "quarter", "year")
+                            Column() {
+                                TextField(
+                                    enabled = false,
+                                    value = timespan.value,
+                                    onValueChange = { timespan.value = it },
+                                    modifier = Modifier
+                                        //.textColor
+                                        .clickable { expandedTimespan = !expandedTimespan }
+                                        .fillMaxWidth(),
+                                    label = {Text(text = "Timespan")},
+                                )
+                                DropdownMenu(
+                                    expanded = expandedTimespan,
+                                    onDismissRequest = { expandedTimespan = false }
+                                ) {
+                                    timespanList.forEach { label ->
+                                        DropdownMenuItem(onClick = {
+                                            timespan.value = label
+                                            expandedTimespan = false
+                                        }) {
+                                            Text(text = label)
+                                        }
+                                    }
+                                }
+                            }
                         }
                         Row() {
                             TextField(
@@ -193,10 +294,8 @@ class MainActivity : ComponentActivity() {
                             .width(GetWidth()),
                             onClick = {
                                 mainHandler.removeCallbacksAndMessages(null)
-
-                                reDraw.value = !reDraw.value
-
-                                requestData(ticker.value, "1", timespan.value, from.value, to.value, "50000", candles, timestamps, timeFormat)
+                                selectedTimeFormat.value = listOf(TimeData.DAY.index, " ", TimeData.MONTH_SHORT.index, " ", TimeData.HOUR.index, ":", TimeData.MINUTE.index)
+                                requestData(ticker.value, "1", timespan.value, from.value, to.value, "50000", candles, timestamps, timeFormat, reDraw)
                             }){
                             Text(text = "Upload Stock Data")
                         }
@@ -232,21 +331,43 @@ class MainActivity : ComponentActivity() {
                                 onValueChange = { newText -> newCandleCount.value = newText },
                                 placeholder = { Text("500") }
                             )
-                            TextField(
-                                modifier = Modifier
-                                    .width(GetWidth() / 2),
-                                label = {Text("Generate new every second")},
-                                value = newGenerateNew.value,
-                                onValueChange = {newText -> newGenerateNew.value = newText},
-                                placeholder = { Text("true") }
-                            )
+
+                            var mExpanded by remember { mutableStateOf(false) }
+                            val booleanList = listOf("true", "false")
+                            Column() {
+                                TextField(
+                                    enabled = false,
+                                    value = newGenerateNew.value,
+                                    onValueChange = { newGenerateNew.value = it },
+                                    modifier = Modifier
+                                        //.textColor
+                                        .clickable { mExpanded = !mExpanded }
+                                        .fillMaxWidth(),
+                                    label = {Text(text = "Generate new every second")},
+                                )
+                                DropdownMenu(
+                                    expanded = mExpanded,
+                                    onDismissRequest = { mExpanded = false }
+                                ) {
+                                    booleanList.forEach { label ->
+                                        DropdownMenuItem(onClick = {
+                                            newGenerateNew.value = label
+                                            mExpanded = false
+                                        }) {
+                                            Text(text = label)
+                                        }
+                                    }
+                                }
+                            }
+
                         }
                         Button(modifier = Modifier
                             .width(GetWidth()),
                             onClick = {
                                 mainHandler.removeCallbacksAndMessages(null)
+                                selectedTimeFormat.value = listOf(TimeData.DAY.index, " ", TimeData.MONTH_SHORT.index, " ", TimeData.HOUR.index, ":", TimeData.MINUTE.index, ":", TimeData.SECOND.index)
 
-                                timeFormat.value = listOf("3", " : ", "4", " : ", "5")
+                                timeFormat.value = listOf(TimeData.HOUR.index, " : ", TimeData.MINUTE.index, " : ", TimeData.SECOND.index)
                                 timestamps.value = MutableList(0) { MutableList(4) { "" } }
 
                                 startPrice.value = newStartPrice.value
@@ -254,22 +375,28 @@ class MainActivity : ComponentActivity() {
                                 candleCount.value = newCandleCount.value
                                 generateNew.value = newGenerateNew.value
 
-                                reDraw.value = !reDraw.value
-
                                 //candles.value = generateRandomData(startPrice.value.toInt(), endPrice.value.toInt(), candleCount.value.toInt(), timestamps)
-                                var randomCandles = mutableListOf<MutableList<Float>>()
+                                var randomCandles = mutableListOf<List<Float>>()
                                 randomCandles = generateRandomData(startPrice.value.toInt(), endPrice.value.toInt(), candleCount.value.toInt(), timestamps)
                                 if(generateNew.value.toBoolean()) {
+                                    reDraw.value = !reDraw.value
                                     val updateTask = object : Runnable {
                                         override fun run() {
                                             mainHandler.postDelayed(this, 1000)
                                             addRandomCandle(startPrice.value.toInt(), endPrice.value.toInt(), randomCandles, timestamps)
+                                            //addRandomCandle(startPrice.value.toInt(), endPrice.value.toInt(), randomCandles, unixTime)
                                             candles.value = randomCandles
                                             liveUpdate.value = !liveUpdate.value
                                         }
                                     }
                                     //mainHandler = Handler(Looper.getMainLooper())
                                     mainHandler.post(updateTask)
+                                } else {
+                                    //liveUpdate.value = !liveUpdate.value
+                                    reDraw.value = !reDraw.value
+                                    candles.value = randomCandles
+                                    //liveUpdate.value = !liveUpdate.value
+                                    //reDraw.value = !reDraw.value
                                 }
                             }){
                             Text(text = "Generate Random Data")
@@ -299,19 +426,23 @@ class MainActivity : ComponentActivity() {
                             val newSelectedLineThickness = remember{mutableStateOf(selectedLineThickness.value.toString().removeSuffix(".dp"))}
                             val newDojiCandleThickness = remember{mutableStateOf(dojiCandleThickness.value.toString().removeSuffix(".dp"))}
                             val newEndButtonSize = remember{mutableStateOf(endButtonSize.value.toString().removeSuffix(".dp"))}
-                            val newSignificantDigits = remember{mutableStateOf(significantDigits.value.toString())}
+                            val newTopOffset = remember{mutableStateOf(topOffset.value.toString().removeSuffix(".dp"))}
                             val newRightBarTextSize = remember{mutableStateOf(rightBarTextSize.value.toString())}
+                            val newSignificantDigits = remember{mutableStateOf(significantDigits.value.toString())}
+                            val newPriceTagsCount = remember{mutableStateOf(priceTagsCount.value.toString())}
+                            val newMinIndent = remember{mutableStateOf(minIndent.value.toString())}
+                            val newDateOffset = remember{mutableStateOf(dateOffset.value.toString())}
 
-                            val newBackgroundColor = remember{mutableStateOf(backgroundColor.value.joinToString(" "))}
-                            val newRightBarColor = remember{mutableStateOf(rightBarColor.value.joinToString(" "))}
-                            val newPositiveCandleColor = remember{mutableStateOf(positiveCandleColor.value.joinToString(" "))}
-                            val newNegativeCandleColor = remember{mutableStateOf(negativeCandleColor.value.joinToString(" "))}
-                            val newDojiCandleColor = remember{mutableStateOf(dojiCandleColor.value.joinToString(" "))}
-                            val newEndButtonColor = remember{mutableStateOf(endButtonColor.value.joinToString(" "))}
-                            val newPriceColor = remember{mutableStateOf(priceColor.value.joinToString(" "))}
-                            val newSelectedColor = remember{mutableStateOf(selectedColor.value.joinToString(" "))}
-                            val newTextColor = remember{mutableStateOf(textColor.value.joinToString(" "))}
-                            val newSeparatorColor = remember{mutableStateOf(separatorColor.value.joinToString(" "))}
+                            val newBackgroundColor = remember{mutableStateOf(backgroundColor.value.joinToString(", "))}
+                            val newRightBarColor = remember{mutableStateOf(rightBarColor.value.joinToString(", "))}
+                            val newPositiveCandleColor = remember{mutableStateOf(positiveCandleColor.value.joinToString(", "))}
+                            val newNegativeCandleColor = remember{mutableStateOf(negativeCandleColor.value.joinToString(", "))}
+                            val newDojiCandleColor = remember{mutableStateOf(dojiCandleColor.value.joinToString(", "))}
+                            val newEndButtonColor = remember{mutableStateOf(endButtonColor.value.joinToString(", "))}
+                            val newPriceColor = remember{mutableStateOf(priceColor.value.joinToString(", "))}
+                            val newSelectedColor = remember{mutableStateOf(selectedColor.value.joinToString(", "))}
+                            val newTextColor = remember{mutableStateOf(textColor.value.joinToString(", "))}
+                            val newSeparatorColor = remember{mutableStateOf(separatorColor.value.joinToString(", "))}
 
                             Column(
                                 modifier = Modifier
@@ -414,10 +545,10 @@ class MainActivity : ComponentActivity() {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
-                                        label = {Text("Significant Digits: Int >= 0")},
-                                        value = newSignificantDigits.value,
-                                        onValueChange = {newText -> newSignificantDigits.value = newText},
-                                        placeholder = { Text("2") }
+                                        label = {Text("Top Offset: Dp")},
+                                        value = newTopOffset.value,
+                                        onValueChange = {newText -> newTopOffset.value = newText},
+                                        placeholder = { Text("8") }
                                     )
                                     TextField(
                                         modifier = Modifier
@@ -432,90 +563,126 @@ class MainActivity : ComponentActivity() {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
-                                        label = {Text("Background Color: r g b a")},
+                                        label = {Text("Significant Digits: Int >= 0")},
+                                        value = newSignificantDigits.value,
+                                        onValueChange = {newText -> newSignificantDigits.value = newText},
+                                        placeholder = { Text("2") }
+                                    )
+                                    TextField(
+                                        modifier = Modifier
+                                            .width(GetWidth() / 2),
+                                        label = {Text("Price Tags Count: Int >= 0")},
+                                        value = newPriceTagsCount.value,
+                                        onValueChange = {newText -> newPriceTagsCount.value = newText},
+                                        placeholder = { Text("4") }
+                                    )
+                                }
+                                Row() {
+                                    TextField(
+                                        modifier = Modifier
+                                            .width(GetWidth() / 2),
+                                        label = {Text("Min Indent: Int >= 0")},
+                                        value = newMinIndent.value,
+                                        onValueChange = {newText -> newMinIndent.value = newText},
+                                        placeholder = { Text("12") }
+                                    )
+                                    TextField(
+                                        modifier = Modifier
+                                            .width(GetWidth() / 2),
+                                        label = {Text("Date Offset: Int >= 0")},
+                                        value = newDateOffset.value,
+                                        onValueChange = {newText -> newDateOffset.value = newText},
+                                        placeholder = { Text("1") }
+                                    )
+                                }
+                                Row() {
+                                    TextField(
+                                        modifier = Modifier
+                                            .width(GetWidth() / 2),
+                                        label = {Text("Background Color: r,g,b,a")},
                                         value = newBackgroundColor.value,
                                         onValueChange = {newText -> newBackgroundColor.value = newText},
-                                        placeholder = { Text("41 49 51 255") }
+                                        placeholder = { Text("41, 49, 51, 255") }
                                     )
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
-                                        label = {Text("Right Bar Color: r g b a")},
+                                        label = {Text("Right Bar Color: r,g,b,a")},
                                         value = newRightBarColor.value,
                                         onValueChange = {newText -> newRightBarColor.value = newText},
-                                        placeholder = { Text("37 44 46 255") }
+                                        placeholder = { Text("37, 44, 46, 255") }
                                     )
                                 }
                                 Row() {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
-                                        label = {Text("Positive Candle Color: r g b a")},
+                                        label = {Text("Positive Candle Color: r,g,b,a")},
                                         value = newPositiveCandleColor.value,
                                         onValueChange = {newText -> newPositiveCandleColor.value = newText},
-                                        placeholder = { Text("0 255 0 255") }
+                                        placeholder = { Text("0, 255, 0, 255") }
                                     )
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
-                                        label = {Text("Negative Candle Color: r g b a")},
+                                        label = {Text("Negative Candle Color: r,g,b,a")},
                                         value = newNegativeCandleColor.value,
                                         onValueChange = {newText -> newNegativeCandleColor.value = newText},
-                                        placeholder = { Text("255 0 0 255") }
+                                        placeholder = { Text("255, 0, 0, 255") }
                                     )
                                 }
                                 Row() {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
-                                        label = {Text("Doji Candle Color: r g b a")},
+                                        label = {Text("Doji Candle Color: r,g,b,a")},
                                         value = newDojiCandleColor.value,
                                         onValueChange = {newText -> newDojiCandleColor.value = newText},
-                                        placeholder = { Text("255 255 255 255") }
+                                        placeholder = { Text("255, 255, 255, 255") }
                                     )
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
-                                        label = {Text("End Button Color: r g b a")},
+                                        label = {Text("End Button Color: r,g,b,a")},
                                         value = newEndButtonColor.value,
                                         onValueChange = {newText -> newEndButtonColor.value = newText},
-                                        placeholder = { Text("255 255 255 255") }
+                                        placeholder = { Text("255, 255, 255, 255") }
                                     )
                                 }
                                 Row() {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
-                                        label = {Text("Price Color: r g b a")},
+                                        label = {Text("Price Color: r,g,b,a")},
                                         value = newPriceColor.value,
                                         onValueChange = {newText -> newPriceColor.value = newText},
-                                        placeholder = { Text("0 128 255 255") }
+                                        placeholder = { Text("0, 128, 255, 255") }
                                     )
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
-                                        label = {Text("Selected Color: r g b a")},
+                                        label = {Text("Selected Color: r,g,b,a")},
                                         value = newSelectedColor.value,
                                         onValueChange = {newText -> newSelectedColor.value = newText},
-                                        placeholder = { Text("106 90 205 255") }
+                                        placeholder = { Text("106, 90, 205, 255") }
                                     )
                                 }
                                 Row() {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
-                                        label = {Text("Text Color: r g b a")},
+                                        label = {Text("Text Color: r,g,b,a")},
                                         value = newTextColor.value,
                                         onValueChange = {newText -> newTextColor.value = newText},
-                                        placeholder = { Text("255 255 255 255") }
+                                        placeholder = { Text("255, 255, 255, 255") }
                                     )
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
-                                        label = {Text("Separator Color: r g b a")},
+                                        label = {Text("Separator Color: r,g,b,a")},
                                         value = newSeparatorColor.value,
                                         onValueChange = {newText -> newSeparatorColor.value = newText},
-                                        placeholder = { Text("71 74 81 255") }
+                                        placeholder = { Text("71, 74, 81, 255") }
                                     )
                                 }
                                 Button(
@@ -532,24 +699,36 @@ class MainActivity : ComponentActivity() {
                                         selectedLineThickness.value = newSelectedLineThickness.value.toFloat().dp
                                         dojiCandleThickness.value = newDojiCandleThickness.value.toFloat().dp
                                         endButtonSize.value = newEndButtonSize.value.toFloat().dp
-                                        significantDigits.value = newSignificantDigits.value.toInt()
+                                        topOffset.value = newTopOffset.value.toFloat().dp
                                         rightBarTextSize.value = newRightBarTextSize.value.toInt()
+                                        significantDigits.value = newSignificantDigits.value.toInt()
+                                        priceTagsCount.value = newPriceTagsCount.value.toInt()
+                                        minIndent.value = newMinIndent.value.toInt()
+                                        dateOffset.value = newDateOffset.value.toInt()
 
-                                        backgroundColor.value = newBackgroundColor.value.split(" ")
-                                        rightBarColor.value = newRightBarColor.value.split(" ")
-                                        positiveCandleColor.value = newPositiveCandleColor.value.split(" ")
-                                        negativeCandleColor.value = newNegativeCandleColor.value.split(" ")
-                                        dojiCandleColor.value = newDojiCandleColor.value.split(" ")
-                                        endButtonColor.value = newEndButtonColor.value.split(" ")
-                                        priceColor.value = newPriceColor.value.split(" ")
-                                        selectedColor.value = newSelectedColor.value.split(" ")
-                                        textColor.value = newTextColor.value.split(" ")
-                                        separatorColor.value = newSeparatorColor.value.split(" ")
+                                        backgroundColor.value = newBackgroundColor.value.filter { !it.isWhitespace() }.split(",")
+                                        rightBarColor.value = newRightBarColor.value.filter { !it.isWhitespace() }.split(",")
+                                        positiveCandleColor.value = newPositiveCandleColor.value.filter { !it.isWhitespace() }.split(",")
+                                        negativeCandleColor.value = newNegativeCandleColor.value.filter { !it.isWhitespace() }.split(",")
+                                        dojiCandleColor.value = newDojiCandleColor.value.filter { !it.isWhitespace() }.split(",")
+                                        endButtonColor.value = newEndButtonColor.value.filter { !it.isWhitespace() }.split(",")
+                                        priceColor.value = newPriceColor.value.filter { !it.isWhitespace() }.split(",")
+                                        selectedColor.value = newSelectedColor.value.filter { !it.isWhitespace() }.split(",")
+                                        textColor.value = newTextColor.value.filter { !it.isWhitespace() }.split(",")
+                                        separatorColor.value = newSeparatorColor.value.filter { !it.isWhitespace() }.split(",")
 
                                         reDraw.value = !reDraw.value
                                         showSettings.value = false
                                     }) {
                                     Text(text = "Apply")
+                                }
+                                Button(
+                                    modifier = Modifier
+                                        .width(GetWidth()),
+                                    onClick = {
+                                        showSettings.value = false
+                                    }) {
+                                    Text(text = "Back")
                                 }
                             }
                         }
@@ -559,83 +738,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    val dateFormat = SimpleDateFormat("yyyy MMM dd HH mm ss", Locale.ENGLISH)
 
-    private fun getDateString(time: String) : MutableList<String> = stringToWords(dateFormat.format(time.toLong()))
-
-    private fun stringToWords(s : String) = s.trim().splitToSequence(' ')
-        .filter { it.isNotEmpty() }
-        .toMutableList()
-
-
-    private fun requestData(ticker: String, multiplier: String, timespan: String, from: String, to: String, limit: String, candlesList: MutableState<MutableList<MutableList<Float>>>, timestampsList: MutableState<MutableList<MutableList<String>>>, timeFormat: MutableState<List<String>>) {
-        //https://api.polygon.io/v2/aggs/ticker/AAPL/range/1/day/2023-01-09/2023-01-09?adjusted=true&sort=asc&limit=120&apiKey=fVYFzwwxhgYGobQCWje8h9oYE5pufXvm
-        val url = "https://api.polygon.io/v2/aggs/ticker/$ticker/range/$multiplier/$timespan/$from/$to?adjusted=true&sort=asc&limit=$limit&apiKey=$API_KEY"
-        val queue = Volley.newRequestQueue(this)
-        val request = StringRequest(
-            Request.Method.GET,
-            url,
-            {
-                //result -> Log.d("debug", "Result: $result")
-                //result -> parseData(result)
-                result ->
-                val (list, list1) = parseData(result)
-                candlesList.value = list
-                timestampsList.value = list1
-                when (timespan) {
-                    "minute" -> timeFormat.value = listOf<String>("3", ":00")
-                    "hour" -> timeFormat.value = listOf<String>("2", " ", "1")
-                    "day" -> timeFormat.value = listOf<String>("1")
-                    "week" -> timeFormat.value = listOf<String>("1")
-                    "month" -> timeFormat.value = listOf<String>("0")
-                    "quarter" -> timeFormat.value = listOf<String>("0")
-                    "year" -> timeFormat.value = listOf<String>("0")
-                    else -> {
-                        timeFormat.value = listOf<String>()
-                    }
-                }
-            },
-            {
-                error -> Log.d("debug", "Request Error: $error")
-            }
-        )
-        queue.add(request)
-    }
-
-    private fun parseData(result: String): Pair<MutableList<MutableList<Float>>, MutableList<MutableList<String>>> {
-        val root = JSONObject(result)
-        try {
-            val results = root.getJSONArray("results")
-            val candles = MutableList(0) { MutableList(4) { 0f } } //open, close, max, min
-            Log.d("debug", results.length().toString())
-            val timestamps = MutableList(0) { MutableList(4) { "" } }
-            for (i in 0 until results.length()) {
-                val currentCandle = results.getJSONObject(i)
-                candles.add(mutableListOf(
-                    currentCandle.getString("o").toFloat(),
-                    currentCandle.getString("c").toFloat(),
-                    currentCandle.getString("h").toFloat(),
-                    currentCandle.getString("l").toFloat(),))
-                timestamps.add(getDateString(currentCandle.getString("t")))
-            }
-            //Log.d("debug", "Result: ${candles[1][0]}")
-            showList(candles)
-//            //больше 250000 пикселей - ошибка
-//            if (candles.size > 8000) candles.removeRange(8000..candles.size)
-            if (candles.size > 2000) candles.removeRange(2000..candles.size)
-            return Pair(candles, timestamps)
-        } catch (e: JSONException) {
-            return Pair(mutableListOf<MutableList<Float>>(), mutableListOf<MutableList<String>>())
-        }
-    }
-
-    fun showList(list: MutableList<MutableList<Float>>) {
-        for (row in list) {
-            Log.d("debug", row.toString())
-        }
-    }
-
-    private fun generateRandomData(startPrice: Int, endPrice: Int, candleCount: Int, timestampsList: MutableState<MutableList<MutableList<String>>>, previousCandleClose: Int = -1): MutableList<MutableList<Float>> {
+    private fun generateRandomData(startPrice: Int, endPrice: Int, candleCount: Int, timestampsList: MutableState<MutableList<MutableList<String>>>, previousCandleClose: Int = -1): MutableList<List<Float>> {
         val priceRange = endPrice - startPrice
 
         var prevCandleClose = 0
@@ -656,15 +760,15 @@ class MainActivity : ComponentActivity() {
         var close = 0
         var max = 0
         var min = 0
-        var randomData = MutableList(0) { MutableList(4) { 0f } } //open, close, max, min
+        var randomData = MutableList(0) { List(4) { 0f } } //open, close, max, min
 
         val unixTime = System.currentTimeMillis()
-        Log.d("debug", "unixTime, $unixTime")
+        //Log.d("debug", "unixTime, $unixTime")
 
         for (i in 1..candleCount) {
 
-            timestampsList.value.add(getDateString((unixTime - (candleCount - i) * 1000).toString()))
-            Log.d("debug", getDateString((unixTime - (candleCount - i) * 1000).toString()).toString())
+            timestampsList.value.add(convertTime((unixTime - (candleCount - i) * 1000).toString()))
+            //Log.d("debug", getDateString((unixTime - (candleCount - i) * 1000).toString()).toString())
 
             randomSeed1 = (0..1000).random()
             randomSeed2 = (0..10).random()
@@ -695,6 +799,7 @@ class MainActivity : ComponentActivity() {
                 8 -> topShadowHeight = candleHeight * 0.5f
                 9 -> topShadowHeight = candleHeight * 0.3f
                 10 -> topShadowHeight = candleHeight * 0.1f
+                //in 0..10 -> topShadowHeight = 0f
                 else -> { }
             }
             when (randomSeed3) {
@@ -709,6 +814,7 @@ class MainActivity : ComponentActivity() {
                 8 -> bottomShadowHeight = candleHeight * 0.5f
                 9 -> bottomShadowHeight = candleHeight * 0.3f
                 10 -> bottomShadowHeight = candleHeight * 0.1f
+                //in 0..10 -> bottomShadowHeight = 0f
                 else -> { }
             }
             if (candleType && (prevCandleClose + candleHeight + topShadowHeight > endPrice)) candleType = !candleType
@@ -726,7 +832,7 @@ class MainActivity : ComponentActivity() {
                 max = (open..open + topShadowHeight.toInt()).random()
                 min = (close - bottomShadowHeight.toInt()..close).random()
             }
-            randomData.add(mutableListOf(
+            randomData.add(listOf(
                 open.toFloat(),
                 close.toFloat(),
                 max.toFloat(),
@@ -737,21 +843,10 @@ class MainActivity : ComponentActivity() {
         return randomData
     }
 
-    private fun addRandomCandle(startPrice: Int, endPrice: Int, candlesList: MutableList<MutableList<Float>>, timestamps: MutableState<MutableList<MutableList<String>>>) {
+    private fun addRandomCandle(startPrice: Int, endPrice: Int, candlesList: MutableList<List<Float>>, timestamps: MutableState<MutableList<MutableList<String>>>) {
         candlesList.add(generateRandomData(startPrice, endPrice, 1, timestamps, candlesList[candlesList.size-1][1].toInt())[0])
     }
-
 }
-
-//private fun getDateTime(s: String): String? {
-//    try {
-//        val sdf = SimpleDateFormat("MM/dd/yyyy")
-//        val netDate = Date(Long.parseLong(s) * 1000)
-//        return sdf.format(netDate)
-//    } catch (e: Exception) {
-//        return e.toString()
-//    }
-//}
 
 inline fun <reified T> MutableList<T>.removeRange(range: IntRange) {
     val fromIndex = range.start

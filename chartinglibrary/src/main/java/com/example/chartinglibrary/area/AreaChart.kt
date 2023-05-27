@@ -1,9 +1,9 @@
-package com.example.candlestickchart
+package com.example.chartinglibrary.area
 
 import androidx.compose.runtime.Composable
 
 @Composable
-fun AreaChartComponent(
+fun AreaChart(
 
 ) {
 

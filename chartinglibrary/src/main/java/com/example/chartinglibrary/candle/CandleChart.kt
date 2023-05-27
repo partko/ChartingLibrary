@@ -1,4 +1,4 @@
-package com.example.candlestickchart
+package com.example.chartinglibrary.candle
 
 import android.content.res.Resources
 import android.util.Log
@@ -21,8 +21,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -38,18 +38,19 @@ import java.math.RoundingMode
  *
  */
 @Composable
-fun CandlestickChartComponent(
-    candles: MutableList<MutableList<Float>>,
+fun CandlestickChart(
+    candles: MutableList<List<Float>>,
     timestamps: MutableList<MutableList<String>>,
     timeFormat: List<String>,
     selectedTimeFormat: List<String>,
+    priceTagsCount: Int = 4,
     minIndent: Int = 12,
     dateOffset: Int = 1,
     chartWidth: Dp = 300.dp,
     chartHeight: Dp = 300.dp,
     candleWidth: Dp = 8.dp,
     gapWidth: Dp = 2.dp,
-    topOffset: Dp = 4.dp,
+    topOffset: Dp = 8.dp,
     rightBarWidth: Dp = 50.dp,
     rightBarTextSize: Int = 10,
     significantDigits: Int = 2,
@@ -74,33 +75,89 @@ fun CandlestickChartComponent(
     liveUpdate: Boolean = false,
 ) {
 
-    // pixel density
-    val screenDensity: Float = Resources.getSystem().displayMetrics.density
+    // pixel density: Float
+    val screenDensity by remember {
+        mutableStateOf(Resources.getSystem().displayMetrics.density)
+    }
     //Log.d("debug", "screenDensity = $screenDensity")
 
-    // the width of the chart in pixels
-    val chartWidthInPx = chartWidth.toString().removeSuffix(".dp").toFloat().dpToFloat()
-    //Log.d("debug", "chartWidthInDp = $chartWidth, chartWidthInPx = $chartWidthInPx")
+    // the width of the chart in pixels: Float
+    val chartWidthInPx = remember {
+        mutableStateOf(chartWidth.toString().removeSuffix(".dp").toFloat().dpToFloat())
+    }
+    //Log.d("debug", "chartWidthInDp = $chartWidth, chartWidthInPx = ${chartWidthInPx.value}")
 
-    // width of the right panel in pixels
-    var rightBarWidthInPx = remember{
+    // width of the right panel in pixels: Float
+    val rightBarWidthInPx = remember {
         mutableStateOf(rightBarWidth.toString().removeSuffix(".dp").toFloat().dpToFloat())
     }
-    //Log.d("debug", "rightBarWidthInDp = $rightBarWidth, rightBarWidthInPx = $rightBarWidthInPx")
+    //Log.d("debug", "rightBarWidthInDp = $rightBarWidth, rightBarWidthInPx = ${rightBarWidthInPx.value}")
 
-    // the number of visible candles on the chart.
-    var visibleCandles: Int = (chartWidth / (candleWidth + gapWidth)).toBigDecimal().setScale(1, RoundingMode.DOWN).toInt() + 1
-    //Log.d("debug", "visibleCandles = $visibleCandles")
+    // the number of visible candles on the chart: Int
+    val visibleCandles = remember {
+        mutableStateOf((chartWidth / (candleWidth + gapWidth)).toBigDecimal().setScale(1, RoundingMode.DOWN).toInt() + 1)
+    }
+    //Log.d("debug", "visibleCandles = ${visibleCandles.value}")
 
-    // the width of the (candle + indentation) in pixels
-    var candleWithSpaceInPx: Float = (candleWidth + gapWidth).value * screenDensity
-    //Log.d("debug", "candleWithSpace = $candleWithSpace")
+    // the width of the (candle + indentation) in pixels: Float
+    val candleWithSpaceInPx = remember {
+        mutableStateOf((candleWidth + gapWidth).value * screenDensity)
+    }
+    //Log.d("debug", "candleWithSpace = ${candleWithSpaceInPx.value}")
 
-    // the width of the (candle + indentation) in dp
-    var candleWithSpaceInDp = remember {
+    // the width of the (candle + indentation) in dp: Dp
+    val candleWithSpaceInDp = remember {
         mutableStateOf(candleWidth + gapWidth)
     }
-    //Log.d("debug", "candleWithSpaceInDp = $candleWithSpaceInDp")
+    //Log.d("debug", "candleWithSpaceInDp = ${candleWithSpaceInDp.value}")
+
+
+    /**
+     * Parses time data into a list of strings to display.
+     */
+    fun parseCandleTime(): List<String> {
+        val result = mutableListOf<String>()
+        var previousDate = ""
+        var counter = 0
+        var allowedToDraw = true
+        var offsetCounter = 0
+
+        for (i in timestamps.indices) {
+            counter++
+            var nextDate = ""
+            for (j in timeFormat) {
+                if (j.isDigitsOnly()) {
+                    nextDate += timestamps[i][j.toInt()]
+                } else {
+                    nextDate += j
+                }
+            }
+            if (nextDate != previousDate && allowedToDraw) {
+                if (offsetCounter >= dateOffset) {
+                    offsetCounter = 0
+                    counter = 0
+                    allowedToDraw = false
+                    previousDate = nextDate
+                    result.add(nextDate)
+                } else {
+                    offsetCounter++
+                    result.add("")
+                }
+            } else {
+                result.add("")
+            }
+            if (counter == minIndent) {
+                counter = 0
+                allowedToDraw = true
+            }
+        }
+        //Log.d("info", "candleTime ${result.toString()}")
+        return result
+    }
+
+    val candleTime = remember {
+        mutableStateOf(parseCandleTime())
+    }
 
     /**
      * Returns the minimum price on the visible section of the chart.
@@ -144,129 +201,133 @@ fun CandlestickChartComponent(
         .toMutableList()
 
     if (candles.isNotEmpty()) {
-        //Log.d("debug", "Candles count = ${candles.size}")
-
-        var scrollOffset = 0 //количество сместившихся свечей при скроле
-        //Log.d("debug", "scrollOffset = $scrollOffset")
-
-//        var maxPrice = 0f
-//        var minPrice = candles[0][3]
-        val maxPrice = remember {
-            //mutableStateOf(0f)
-            mutableStateOf(getMaxPrice(scrollOffset, visibleCandles))
+        val candlesCount = remember {
+            mutableStateOf(candles.size)
         }
+        //Log.d("debug", "candlesCount = ${candlesCount.value}")
+
+        // to update the data
+        val isUpdateInitial = remember {
+            mutableStateOf(reDraw)
+        }
+        val isUpdateCurrent = reDraw
+
+        // the number of shifted candlesticks when scrolling: Int
+        var scrollOffset = 0
+
+        // the minimum price on the visible section of the chart: Float
         val minPrice = remember {
-            //mutableStateOf(candles[0 + scrollOffset][3])
-            mutableStateOf(getMinPrice(scrollOffset, visibleCandles))
+            mutableStateOf(getMinPrice(scrollOffset, visibleCandles.value))
         }
-
-        //Log.d("debug", "maxPrice = ${maxPrice.value}")
         //Log.d("debug", "minPrice = ${minPrice.value}")
 
+        // the maximum price on the visible section of the chart: Float
+        val maxPrice = remember {
+            mutableStateOf(getMaxPrice(scrollOffset, visibleCandles.value))
+        }
+        //Log.d("debug", "maxPrice = ${maxPrice.value}")
+
+        // scroll position in pixels
         val scrollState = rememberScrollState()
+        //Log.d("debug", "scrollState current: ${scrollState.value}, max: ${scrollState.maxValue}")
 
-        //Log.d("ScrollValue", "current: ${scrollState.value}, max: ${scrollState.maxValue}")
-
+        // index of the selected candle: Int
         val selectedCandle = remember {
             mutableStateOf(-1)
         }
+        if (isUpdateInitial.value != isUpdateCurrent) {
+            Log.d("info", "updating the chart, scrollState.value=${scrollState.value}, candles.size=${candles.size}")
+            isUpdateInitial.value = isUpdateCurrent
+            selectedCandle.value = -1
+        }
+
+        // long press status: Boolean
         val isLongTap = remember {
             mutableStateOf(false)
         }
+
+        // the state of the endButton: Boolean
         val isBtnEnd = remember {
             mutableStateOf(false)
         }
+
+        // the transparency of the endButton: Boolean
         val btnEndAlpha = remember {
             mutableStateOf(0f)
         }
 
+        // updating the chart when scrolling
         if (scrollState.isScrollInProgress){
             selectedCandle.value = -1
-            if (candles.size >= (visibleCandles + 1))
-                scrollOffset = minOf((scrollState.value / candleWithSpaceInPx).toInt(), (candles.size - (visibleCandles + 1)))
-            else scrollOffset = (scrollState.value / candleWithSpaceInPx).toInt()
+            if (candles.size >= (visibleCandles.value + 1))
+                scrollOffset = minOf((scrollState.value / candleWithSpaceInPx.value).toInt(), (candles.size - (visibleCandles.value + 1)))
+            else scrollOffset = (scrollState.value / candleWithSpaceInPx.value).toInt()
             //Log.d("debug", "scrollOffset = $scrollOffset")
-            maxPrice.value = getMaxPrice(scrollOffset, visibleCandles)
-            minPrice.value = getMinPrice(scrollOffset, visibleCandles)
+            maxPrice.value = getMaxPrice(scrollOffset, visibleCandles.value)
+            minPrice.value = getMinPrice(scrollOffset, visibleCandles.value)
             if (scrollState.value < scrollState.maxValue) btnEndAlpha.value = 1f
             else btnEndAlpha.value = 0f
         }
 
+        // updating the chart when the endButton is pressed
         LaunchedEffect(key1 = candles, key2 = isBtnEnd.value) {
+            Log.d("info", "LaunchedEffect(key1 = candles, key2 = isBtnEnd.value)")
             //selectedCandle.value = -1
+            candleTime.value = parseCandleTime()
             scrollState.scrollTo(scrollState.maxValue)
-            if (candles.size >= (visibleCandles + 1))
-                scrollOffset = minOf((scrollState.value / candleWithSpaceInPx).toInt(), (candles.size - (visibleCandles + 1)))
-            else scrollOffset = (scrollState.value / candleWithSpaceInPx).toInt()
-            maxPrice.value = getMaxPrice(scrollOffset, visibleCandles)
-            minPrice.value = getMinPrice(scrollOffset, visibleCandles)
+            if (candles.size >= (visibleCandles.value + 1))
+                scrollOffset = minOf((scrollState.value / candleWithSpaceInPx.value).toInt(), (candles.size - (visibleCandles.value + 1)))
+            else scrollOffset = (scrollState.value / candleWithSpaceInPx.value).toInt()
+            maxPrice.value = getMaxPrice(scrollOffset, visibleCandles.value)
+            minPrice.value = getMinPrice(scrollOffset, visibleCandles.value)
             btnEndAlpha.value = 0f
         }
 
+        // updating the chart when changing the display settings
         LaunchedEffect(key1 = reDraw) {
+            Log.d("info", "LaunchedEffect(key1 = reDraw)")
+            candlesCount.value = candles.size
+            candleTime.value = parseCandleTime()
             selectedCandle.value = -1
-            //visibleCandles = (chartWidth / (candleWidth + gapWidth)).toBigDecimal().setScale(1, RoundingMode.DOWN).toInt() + 1
-            //candleWithSpaceInPx = (candleWidth + gapWidth).value * screenDensity
-            candleWithSpaceInDp.value = candleWidth + gapWidth
+            chartWidthInPx.value = chartWidth.toString().removeSuffix(".dp").toFloat().dpToFloat()
             rightBarWidthInPx.value = rightBarWidth.toString().removeSuffix(".dp").toFloat().dpToFloat()
+            visibleCandles.value = (chartWidth / (candleWidth + gapWidth)).toBigDecimal().setScale(1, RoundingMode.DOWN).toInt() + 1
+            candleWithSpaceInPx.value = (candleWidth + gapWidth).value * screenDensity
+            candleWithSpaceInDp.value = candleWidth + gapWidth
 
             scrollState.scrollTo(scrollState.maxValue)
-            if (candles.size >= (visibleCandles + 1))
-                scrollOffset = minOf((scrollState.value / candleWithSpaceInPx).toInt(), (candles.size - (visibleCandles + 1)))
-            else scrollOffset = (scrollState.value / candleWithSpaceInPx).toInt()
-            maxPrice.value = getMaxPrice(scrollOffset, visibleCandles)
-            minPrice.value = getMinPrice(scrollOffset, visibleCandles)
+            if (candles.size >= (visibleCandles.value + 1))
+                scrollOffset = minOf((scrollState.value / candleWithSpaceInPx.value).toInt(), (candles.size - (visibleCandles.value + 1)))
+            else scrollOffset = (scrollState.value / candleWithSpaceInPx.value).toInt()
+            maxPrice.value = getMaxPrice(scrollOffset, visibleCandles.value)
+            minPrice.value = getMinPrice(scrollOffset, visibleCandles.value)
             btnEndAlpha.value = 0f
         }
 
+        // updating the chart when the number of candles changes
         LaunchedEffect(key1 = liveUpdate) {
-            if(scrollState.maxValue - scrollState.value < candleWithSpaceInPx * 3) {
+            Log.d("info", "LaunchedEffect(key1 = liveUpdate)")
+            candlesCount.value = candles.size
+            candleTime.value = parseCandleTime()
+            if(scrollState.maxValue - scrollState.value < candleWithSpaceInPx.value * 3) {
                 scrollState.scrollTo(scrollState.maxValue)
-                if (candles.size >= (visibleCandles + 1))
-                    scrollOffset = minOf((scrollState.value / candleWithSpaceInPx).toInt(), (candles.size - (visibleCandles + 1)))
-                else scrollOffset = (scrollState.value / candleWithSpaceInPx).toInt()
-                maxPrice.value = getMaxPrice(scrollOffset, visibleCandles)
-                minPrice.value = getMinPrice(scrollOffset, visibleCandles)
+                if (candles.size >= (visibleCandles.value + 1))
+                    scrollOffset = minOf((scrollState.value / candleWithSpaceInPx.value).toInt(), (candles.size - (visibleCandles.value + 1)))
+                else scrollOffset = (scrollState.value / candleWithSpaceInPx.value).toInt()
+                maxPrice.value = getMaxPrice(scrollOffset, visibleCandles.value)
+                minPrice.value = getMinPrice(scrollOffset, visibleCandles.value)
                 btnEndAlpha.value = 0f
             }
         }
 
         val currentPrice = candles[candles.size-1][1]
 
-//        @Composable
-//        fun toChartEnd() {
-//            LaunchedEffect(key1 = candles) {
-//                scrollState.scrollTo(scrollState.maxValue)
-//            }
-//        }
-
-//        @Composable
-//        fun longTap(pos: Int) {
-//            Canvas(modifier = Modifier
-//                .offset(x = 0.dp, y = 0.dp)
-//            ) {
-//                drawLine(
-//                    color = priceLineColor,
-//                    start = Offset(
-//                        x = ((candleWidth + gapWidth) * pos + (candleWidth / 2)).toString().removeSuffix(".dp").toFloat().dpToFloat(),
-//                        y = 0f
-//                    ),
-//                    end = Offset(
-//                        x = ((candleWidth + gapWidth) * pos + (candleWidth / 2)).toString().removeSuffix(".dp").toFloat().dpToFloat(),
-//                        y = size.height
-//                    ),
-//                    strokeWidth = 1.dp.toPx(),
-//                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(30f, 10f, 10f, 10f), phase = 0f)
-//                )
-//            }
-//        }
 
         ConstraintLayout() {
             Column(modifier = Modifier
                 .size(width = chartWidth, height = chartHeight)
                 .background(backgroundColor)
                 .horizontalScroll(state = scrollState, reverseScrolling = false)
-                //.width((candles.size * (candlesWidth + 0.01f) * Resources.getSystem().displayMetrics.widthPixels).FloatToDp().dp)
                 .width((candleWithSpaceInDp.value) * candles.size + rightBarWidth)
                 .pointerInput(Unit) {
                     while (true) {
@@ -274,21 +335,23 @@ fun CandlestickChartComponent(
                             isLongTap.value = true
                             val selectedPos = it.x
                             //Log.d("debug", "selectedPos: " + selectedPos)
-                            if(scrollState.value != 0) {
-                                if (selectedPos < (chartWidthInPx - rightBarWidthInPx.value + scrollState.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
-                                    selectedCandle.value = (selectedPos / (candleWithSpaceInDp.value)
-                                        .toString()
-                                        .removeSuffix(".dp")
-                                        .toFloat()
-                                        .dpToFloat()).toInt()
+                            if (scrollState.value != 0) {
+                                if (selectedPos < (chartWidthInPx.value - rightBarWidthInPx.value + scrollState.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
+                                    selectedCandle.value =
+                                        (selectedPos / (candleWithSpaceInDp.value)
+                                            .toString()
+                                            .removeSuffix(".dp")
+                                            .toFloat()
+                                            .dpToFloat()).toInt()
                                 }
                             } else {
-                                if (selectedPos < (candleWithSpaceInPx * candles.size - 1)) { //-1 из-за округления IndexOutOfBoundsException
-                                    selectedCandle.value = (selectedPos / (candleWithSpaceInDp.value)
-                                        .toString()
-                                        .removeSuffix(".dp")
-                                        .toFloat()
-                                        .dpToFloat()).toInt()
+                                if (selectedPos < (candleWithSpaceInPx.value * candlesCount.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
+                                    selectedCandle.value =
+                                        (selectedPos / (candleWithSpaceInDp.value)
+                                            .toString()
+                                            .removeSuffix(".dp")
+                                            .toFloat()
+                                            .dpToFloat()).toInt()
                                 }
                             }
                         }) {
@@ -306,21 +369,23 @@ fun CandlestickChartComponent(
                                     .dropLast(3)
                                     .toInt()
                                 //Log.d("debug", "selectedPos: " + selectedPos)
-                                if(scrollState.value != 0) {
-                                    if (selectedPos < (chartWidthInPx - rightBarWidthInPx.value + scrollState.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
-                                        selectedCandle.value = (selectedPos / (candleWithSpaceInDp.value)
-                                            .toString()
-                                            .removeSuffix(".dp")
-                                            .toFloat()
-                                            .dpToFloat()).toInt()
+                                if (scrollState.value != 0) {
+                                    if (selectedPos < (chartWidthInPx.value - rightBarWidthInPx.value + scrollState.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
+                                        selectedCandle.value =
+                                            (selectedPos / (candleWithSpaceInDp.value)
+                                                .toString()
+                                                .removeSuffix(".dp")
+                                                .toFloat()
+                                                .dpToFloat()).toInt()
                                     }
                                 } else {
-                                    if (selectedPos < (candleWithSpaceInPx * candles.size - 1)) { //-1 из-за округления IndexOutOfBoundsException
-                                        selectedCandle.value = (selectedPos / (candleWithSpaceInDp.value)
-                                            .toString()
-                                            .removeSuffix(".dp")
-                                            .toFloat()
-                                            .dpToFloat()).toInt()
+                                    if (selectedPos < (candleWithSpaceInPx.value * candlesCount.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
+                                        selectedCandle.value =
+                                            (selectedPos / (candleWithSpaceInDp.value)
+                                                .toString()
+                                                .removeSuffix(".dp")
+                                                .toFloat()
+                                                .dpToFloat()).toInt()
                                     }
                                 }
                             }
@@ -335,11 +400,11 @@ fun CandlestickChartComponent(
                             do {
                                 val event: PointerEvent = awaitPointerEvent()
                                 // ACTION_MOVE loop
-                                Log.d("debug", "event1 " + event.toString())
+                                //Log.d("debug", "event1 " + event.toString())
                                 // Consuming event prevents other gestures or scroll to intercept
                                 event.changes.forEach { pointerInputChange: PointerInputChange ->
                                     //pointerInputChange.consumePositionChange()
-                                    Log.d("debug", "event2 " + event.toString())
+                                    //Log.d("debug", "event2 " + event.toString())
                                 }
                             } while (event.changes.any { it.pressed })
                             // ACTION_UP
@@ -354,10 +419,10 @@ fun CandlestickChartComponent(
                     val chartSize = Size(width = size.width, height = size.height * 0.94f) // !!
                     backgroundCanvas(
                         candles = candles,
-                        timestamps = timestamps,
                         maxPrice = maxPrice.value,
                         minPrice = minPrice.value,
                         componentSize = chartSize,
+                        priceTagsCount = priceTagsCount,
                         priceColor = priceColor,
                         selectedColor = selectedColor,
                         rightBarWidth = rightBarWidth,
@@ -371,12 +436,8 @@ fun CandlestickChartComponent(
                         positiveCandleColor = positiveCandleColor,
                         negativeCandleColor = negativeCandleColor,
                         dojiCandleColor = dojiCandleColor,
+                        separatorColor = separatorColor,
                         topOffset = topOffset.toPx(),
-                        chartWidth = chartWidth
-                            .toString()
-                            .removeSuffix(".dp")
-                            .toFloat()
-                            .dpToFloat(),
                         selectedCandle = selectedCandle.value,
                         priceLineThickness = priceLineThickness,
                         priceLineStyle = priceLineStyle,
@@ -394,59 +455,34 @@ fun CandlestickChartComponent(
                     ) {
                     //val boxWidth = this.maxWidth
 
-                    var previousDate = ""
-                    var counter = 0
-                    var allowedToDraw = true
-                    var offsetCounter = 0
-
-                    for (i in timestamps.indices) {
-                        counter++
-                        var nextDate = ""
-                        for (j in timeFormat) {
-                            if (j.isDigitsOnly()) {
-                                nextDate += timestamps[i][j.toInt()]
-                            } else {
-                                nextDate += j
+                    for (i in candleTime.value.indices) {
+                        if (candleTime.value[i] != "") {
+                            Text(
+                                text = candleTime.value[i],
+                                color = textColor,
+                                fontSize = 12.sp,
+                                modifier = Modifier.offset(
+                                    x = ((candleWidth + gapWidth)*i),
+                                    y = chartHeight-16.dp))
+                            Canvas(modifier = Modifier
+                                .offset(x = 0.dp, y = 0.dp)) {
+                                drawLine(
+                                    color = separatorColor,
+                                    start = Offset(
+                                        x = ((candleWidth + gapWidth)*i).toPx() - (gapWidth * 0.5f).toPx(),
+                                        y = 0f
+                                    ),
+                                    end = Offset(
+                                        x = ((candleWidth + gapWidth)*i).toPx() - (gapWidth * 0.5f).toPx(),
+                                        y = chartHeight.toPx()
+                                    ),
+                                    strokeWidth = 0.5.dp.toPx(),
+                                    //pathEffect = PathEffect.dashPathEffect(floatArrayOf(30f, 10f, 10f, 10f), phase = 0f)
+                                )
                             }
-                        }
-                        if (nextDate != previousDate && allowedToDraw) {
-                            if (offsetCounter >= dateOffset) {
-                                offsetCounter = 0
-                                counter = 0
-                                allowedToDraw = false
-                                previousDate = nextDate
-                                Text(
-                                    text = nextDate,
-                                    color = textColor,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.offset(
-                                        x = ((candleWidth + gapWidth)*i),
-                                        y = chartHeight-16.dp))
-                                Canvas(modifier = Modifier
-                                    .offset(x = 0.dp, y = 0.dp)) {
-                                    drawLine(
-                                        color = separatorColor,
-                                        start = Offset(
-                                            x = ((candleWidth + gapWidth)*i).toPx() - (gapWidth * 0.5f).toPx(),
-                                            y = 0f
-                                        ),
-                                        end = Offset(
-                                            x = ((candleWidth + gapWidth)*i).toPx() - (gapWidth * 0.5f).toPx(),
-                                            y = chartHeight.toPx()
-                                        ),
-                                        strokeWidth = 0.5.dp.toPx(),
-                                        //pathEffect = PathEffect.dashPathEffect(floatArrayOf(30f, 10f, 10f, 10f), phase = 0f)
-                                    )
-                                }
-                            } else {
-                                offsetCounter++
-                            }
-                        }
-                        if (counter == minIndent) {
-                            counter = 0
-                            allowedToDraw = true
                         }
                     }
+
                     if (selectedCandle.value >= 0) {
                         var selectedDate = ""
                         for (j in selectedTimeFormat) {
@@ -456,28 +492,32 @@ fun CandlestickChartComponent(
                                 selectedDate += j
                             }
                         }
-//                        Canvas(modifier = Modifier
-//                            .offset(x = 0.dp, y = 0.dp)) {
-//                            drawRect(
-//                                color = priceLineColor,
-//                                topLeft = Offset(
-//                                    x = ((candleWidth + gapWidth)*selectedCandle.value - 8.dp).toString().removeSuffix(".dp").toFloat().dpToFloat(),
-//                                    y = (chartHeight - bottomBarHeight).toString().removeSuffix(".dp").toFloat().dpToFloat()
-//                                ),
-//                                size = Size(
-//                                    width = (selectedDate.length * 7.dp).toPx(),
-//                                    height = bottomBarHeight.toPx()
-//                                )
-//                            )
-//                        }
-                        Text(
-                            text = " $selectedDate ",
-                            color = textColor,
-                            style = TextStyle(background = selectedColor),
-                            fontSize = 12.sp,
-                            modifier = Modifier.offset(
-                                x = ((candleWidth + gapWidth)*selectedCandle.value),
-                                y = chartHeight-16.dp))
+
+                        var size by remember { mutableStateOf(Size.Zero)}
+
+                        BoxWithConstraints(
+                            contentAlignment = Alignment.BottomStart,
+                            modifier = Modifier
+                                .offset(
+                                    x = ((candleWidth + gapWidth) * selectedCandle.value) - size.width.pxToDp() / 2,
+                                    y = chartHeight - 16.dp
+                                )
+                                .background(selectedColor)
+                                .padding(2.dp, 0.dp)
+                                .onGloballyPositioned { coordinates ->
+                                    size = coordinates.size.toSize()
+                                }
+                        ) {
+                            if (selectedCandle.value >= 0) {
+                                Text(
+                                    text = "$selectedDate",
+                                    color = textColor,
+                                    //style = TextStyle(background = selectedColor),
+                                    fontSize = 12.sp,
+                                )
+                            }
+                        }
+
                     }
                 }
             }
@@ -520,22 +560,65 @@ fun CandlestickChartComponent(
             }
 
             // maximum price on visible part of the chart
-            Text(
-                text = "${maxPrice.value.toBigDecimal().setScale(significantDigits, RoundingMode.HALF_UP)}",
-                color = textColor,
-                fontSize = rightBarTextSize.sp,
-                modifier = Modifier.offset(
-                    x = chartWidth * 1.0f - rightBarWidth + 2.dp,
-                    y = chartHeight * 0.0f + topOffset))
+            BoxWithConstraints(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .offset(
+                        x = chartWidth * 1.0f - rightBarWidth,
+                        y = topOffset - rightBarTextSize.dp / 1.5f - 2.dp
+                    )
+                    //.background(priceColor)
+                    .padding(2.dp, 1.dp)
+            ) {
+                Text(
+                    text = "${maxPrice.value.toBigDecimal().setScale(significantDigits, RoundingMode.HALF_UP)}",
+                    color = textColor,
+                    //style = TextStyle(background = priceLineColor),
+                    fontSize = rightBarTextSize.sp,
+                )
+            }
 
             // minimum price on visible part of the chart
-            Text(
-                text = "${minPrice.value.toBigDecimal().setScale(significantDigits, RoundingMode.HALF_UP)}",
-                color = textColor,
-                fontSize = rightBarTextSize.sp,
-                modifier = Modifier.offset(
-                    x = chartWidth * 1.0f - rightBarWidth + 2.dp,
-                    y = (chartHeight - bottomBarHeight) - rightBarWidth / 2.5f  + topOffset))
+            BoxWithConstraints(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .offset(
+                        x = chartWidth * 1.0f - rightBarWidth,
+                        y = (chartHeight * 0.94f - bottomBarHeight) + topOffset - rightBarTextSize.dp / 1.5f - 2.dp
+                    )
+                    //.background(priceColor)
+                    .padding(2.dp, 1.dp)
+            ) {
+                Text(
+                    text = "${minPrice.value.toBigDecimal().setScale(significantDigits, RoundingMode.HALF_UP)}",
+                    color = textColor,
+                    //style = TextStyle(background = priceLineColor),
+                    fontSize = rightBarTextSize.sp,
+                )
+            }
+
+            // intermediate prices
+            for (i in 1 until priceTagsCount + 1) {
+                val price = minPrice.value + (maxPrice.value - minPrice.value) * i / (priceTagsCount + 1)
+                BoxWithConstraints(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .offset(
+                            x = chartWidth * 1.0f - rightBarWidth,
+                            y = (chartHeight * 0.94f - bottomBarHeight) * (maxPrice.value - price) / (maxPrice.value - minPrice.value) + topOffset - rightBarTextSize.dp / 1.5f - 2.dp
+                        )
+                        //.background(priceColor)
+                        .padding(2.dp, 1.dp)
+                ) {
+                    Text(
+                        text = "${price.toBigDecimal().setScale(significantDigits, RoundingMode.HALF_UP)}",
+                        color = textColor,
+                        //style = TextStyle(background = priceLineColor),
+                        fontSize = rightBarTextSize.sp,
+                    )
+                }
+
+            }
 
             // last price
             if (candles[candles.size-1][1] < maxPrice.value && candles[candles.size-1][1] > minPrice.value) {
@@ -602,11 +685,11 @@ fun CandlestickChartComponent(
 }
 
 fun DrawScope.backgroundCanvas(
-    candles: MutableList<MutableList<Float>>,
-    timestamps: MutableList<MutableList<String>>,
+    candles: MutableList<List<Float>>,
     maxPrice: Float,
     minPrice: Float,
     componentSize: Size,
+    priceTagsCount: Int,
     priceColor: Color,
     selectedColor: Color,
     rightBarWidth: Dp,
@@ -616,8 +699,8 @@ fun DrawScope.backgroundCanvas(
     positiveCandleColor: Color,
     negativeCandleColor: Color,
     dojiCandleColor: Color,
+    separatorColor: Color,
     topOffset: Float,
-    chartWidth: Float,
     selectedCandle: Int,
     priceLineThickness: Dp,
     priceLineStyle: FloatArray,
@@ -626,6 +709,43 @@ fun DrawScope.backgroundCanvas(
     selectedLineStyle: FloatArray
 
 ) {
+    val candleAreaHeight = componentSize.height - bottomBarHeight
+    val deltaPrice = maxPrice - minPrice
+    val candleAndGapWidth = candleWidth + gapWidth
+
+    // intermediate prices lines
+    for (i in 1 until priceTagsCount + 1) {
+        val price = minPrice + deltaPrice * i / (priceTagsCount + 1)
+        drawLine(
+            color = separatorColor,
+            start = Offset(
+                x = 0f,
+                y = candleAreaHeight - (price - minPrice) / deltaPrice * candleAreaHeight + topOffset
+            ),
+            end = Offset(
+                x = (componentSize.width - rightBarWidth.toPx()),
+                y = candleAreaHeight - (price - minPrice) / deltaPrice * candleAreaHeight + topOffset
+            ),
+            strokeWidth = 0.5.dp.toPx(),
+            //pathEffect = PathEffect.dashPathEffect(selectedLineStyle, phase = 0f)
+        )
+    }
+
+    // minimum price line
+    drawLine(
+        color = separatorColor,
+        start = Offset(
+            x = 0f,
+            y = candleAreaHeight + topOffset
+        ),
+        end = Offset(
+            x = (componentSize.width - rightBarWidth.toPx()),
+            y = candleAreaHeight + topOffset
+        ),
+        strokeWidth = 0.5.dp.toPx(),
+        //pathEffect = PathEffect.dashPathEffect(selectedLineStyle, phase = 0f)
+    )
+
     for (i in candles.indices) {
 
         // green candle
@@ -633,20 +753,20 @@ fun DrawScope.backgroundCanvas(
             drawRect( // candle body
                 color = positiveCandleColor,
                 topLeft = Offset(
-                    x = ((candleWidth + gapWidth)*i).toPx(),
-                    y = (componentSize.height - bottomBarHeight) - (candles[i][0]-minPrice)/(maxPrice-minPrice)*(componentSize.height - bottomBarHeight) + topOffset),
+                    x = (candleAndGapWidth * i).toPx(),
+                    y = candleAreaHeight - (candles[i][0] - minPrice) / deltaPrice * candleAreaHeight + topOffset),
                 size = Size(
                     width = candleWidth.toPx(),
-                    height = (candles[i][0]-candles[i][1])/(maxPrice-minPrice)*(componentSize.height - bottomBarHeight)),
+                    height = (candles[i][0] - candles[i][1]) / deltaPrice * candleAreaHeight),
             )
             drawRect( // candle shadow
                 color = positiveCandleColor,
                 topLeft = Offset(
-                    x = ((candleWidth + gapWidth)*i).toPx() + (candleWidth*0.45f).toPx(),
-                    y = (componentSize.height - bottomBarHeight) - (candles[i][2]-minPrice)/(maxPrice-minPrice)*(componentSize.height - bottomBarHeight) + topOffset),
+                    x = (candleAndGapWidth * i).toPx() + (candleWidth * 0.45f).toPx(),
+                    y = candleAreaHeight - (candles[i][2] - minPrice) / deltaPrice * candleAreaHeight + topOffset),
                 size = Size(
-                    width = candleWidth.toPx()*0.1f,
-                    height = (candles[i][2]-candles[i][3])/(maxPrice-minPrice)*(componentSize.height - bottomBarHeight)),
+                    width = candleWidth.toPx() * 0.1f,
+                    height = (candles[i][2] - candles[i][3]) / deltaPrice * candleAreaHeight),
             )
         }
 
@@ -655,20 +775,20 @@ fun DrawScope.backgroundCanvas(
             drawRect( // candle body
                 color = negativeCandleColor,
                 topLeft = Offset(
-                    x = ((candleWidth + gapWidth)*i).toPx(),
-                    y = (componentSize.height - bottomBarHeight) - (candles[i][0]-minPrice)/(maxPrice-minPrice)*(componentSize.height - bottomBarHeight) + topOffset),
+                    x = (candleAndGapWidth * i).toPx(),
+                    y = candleAreaHeight - (candles[i][0] - minPrice) / deltaPrice * candleAreaHeight + topOffset),
                 size = Size(
                     width = candleWidth.toPx(),
-                    height = (candles[i][0]-candles[i][1])/(maxPrice-minPrice)*(componentSize.height - bottomBarHeight)),
+                    height = (candles[i][0] - candles[i][1]) / deltaPrice * candleAreaHeight),
             )
             drawRect( // candle shadow
                 color = negativeCandleColor,
                 topLeft = Offset(
-                    x = ((candleWidth + gapWidth)*i).toPx() + (candleWidth*0.45f).toPx(),
-                    y = (componentSize.height - bottomBarHeight) - (candles[i][2]-minPrice)/(maxPrice-minPrice)*(componentSize.height - bottomBarHeight) + topOffset),
+                    x = (candleAndGapWidth * i).toPx() + (candleWidth * 0.45f).toPx(),
+                    y = candleAreaHeight - (candles[i][2] - minPrice) / deltaPrice * candleAreaHeight + topOffset),
                 size = Size(
-                    width = candleWidth.toPx()*0.1f,
-                    height = (candles[i][2]-candles[i][3])/(maxPrice-minPrice)*(componentSize.height - bottomBarHeight)),
+                    width = candleWidth.toPx() * 0.1f,
+                    height = (candles[i][2] - candles[i][3]) / deltaPrice * candleAreaHeight),
             )
         }
 
@@ -677,8 +797,8 @@ fun DrawScope.backgroundCanvas(
             drawRect( // candle body
                 color = dojiCandleColor,
                 topLeft = Offset(
-                    x = ((candleWidth + gapWidth)*i).toPx(),
-                    y = (componentSize.height - bottomBarHeight) - (candles[i][0]-minPrice)/(maxPrice-minPrice)*(componentSize.height - bottomBarHeight) + topOffset),
+                    x = (candleAndGapWidth * i).toPx(),
+                    y = candleAreaHeight - (candles[i][0] - minPrice) / deltaPrice * candleAreaHeight + topOffset),
                 size = Size(
                     width = candleWidth.toPx(),
                     height = dojiCandleThickness.toPx()),
@@ -686,11 +806,11 @@ fun DrawScope.backgroundCanvas(
             drawRect( // candle shadow
                 color = dojiCandleColor,
                 topLeft = Offset(
-                    x = ((candleWidth + gapWidth)*i).toPx() + (candleWidth*0.45f).toPx(),
-                    y = (componentSize.height - bottomBarHeight) - (candles[i][2]-minPrice)/(maxPrice-minPrice)*(componentSize.height - bottomBarHeight) + topOffset),
+                    x = (candleAndGapWidth * i).toPx() + (candleWidth * 0.45f).toPx(),
+                    y = candleAreaHeight - (candles[i][2] - minPrice) / deltaPrice * candleAreaHeight + topOffset),
                 size = Size(
-                    width = candleWidth.toPx()*0.1f,
-                    height = (candles[i][2]-candles[i][3])/(maxPrice-minPrice)*(componentSize.height - bottomBarHeight)),
+                    width = candleWidth.toPx() * 0.1f,
+                    height = (candles[i][2] - candles[i][3]) / deltaPrice * candleAreaHeight),
             )
         }
     }
@@ -701,11 +821,11 @@ fun DrawScope.backgroundCanvas(
             color = priceColor,
             start = Offset(
                 x = 0f,
-                y = (componentSize.height - bottomBarHeight) - (candles[candles.size - 1][1] - minPrice) / (maxPrice - minPrice) * (componentSize.height - bottomBarHeight) + topOffset
+                y = candleAreaHeight - (candles[candles.size - 1][1] - minPrice) / deltaPrice * candleAreaHeight + topOffset
             ),
             end = Offset(
                 x = componentSize.width - rightBarWidth.toPx(),
-                y = (componentSize.height - bottomBarHeight) - (candles[candles.size - 1][1] - minPrice) / (maxPrice - minPrice) * (componentSize.height - bottomBarHeight) + topOffset
+                y = candleAreaHeight - (candles[candles.size - 1][1] - minPrice) / deltaPrice * candleAreaHeight + topOffset
             ),
             strokeWidth = priceLineThickness.toPx(),
             pathEffect = PathEffect.dashPathEffect(priceLineStyle, phase = 0f)
@@ -713,18 +833,18 @@ fun DrawScope.backgroundCanvas(
     }
 
     if (selectedCandle >= 0) {
-        Log.d("debug", ((candleWidth + gapWidth) * selectedCandle + (candleWidth / 2)).toString().removeSuffix(".dp").toFloat().dpToFloat().toString())
+        //Log.d("debug", (candleAndGapWidth * selectedCandle + (candleWidth / 2)).toString().removeSuffix(".dp").toFloat().dpToFloat().toString())
 
         // perpendicular to the date/time panel
         drawLine(
             color = selectedColor,
             start = Offset(
-                x = ((candleWidth + gapWidth) * selectedCandle + (candleWidth / 2)).toPx(),
+                x = (candleAndGapWidth * selectedCandle + (candleWidth / 2)).toPx(),
                 y = 0f
             ),
             end = Offset(
-                x = ((candleWidth + gapWidth) * selectedCandle + (candleWidth / 2)).toPx(),
-                y = componentSize.height
+                x = (candleAndGapWidth * selectedCandle + (candleWidth / 2)).toPx(),
+                y = componentSize.height + topOffset
             ),
             strokeWidth = selectedLineThickness.toPx(),
             pathEffect = PathEffect.dashPathEffect(selectedLineStyle, phase = 0f)
@@ -735,11 +855,11 @@ fun DrawScope.backgroundCanvas(
             color = selectedColor,
             start = Offset(
                 x = 0f,
-                y = (componentSize.height - bottomBarHeight) - (candles[selectedCandle][1] - minPrice) / (maxPrice - minPrice) * (componentSize.height - bottomBarHeight) + topOffset
+                y = candleAreaHeight - (candles[selectedCandle][1] - minPrice) / deltaPrice * candleAreaHeight + topOffset
             ),
             end = Offset(
                 x = (componentSize.width - rightBarWidth.toPx()),
-                y = (componentSize.height - bottomBarHeight) - (candles[selectedCandle][1] - minPrice) / (maxPrice - minPrice) * (componentSize.height - bottomBarHeight) + topOffset
+                y = candleAreaHeight - (candles[selectedCandle][1] - minPrice) / deltaPrice * candleAreaHeight + topOffset
             ),
             strokeWidth = selectedLineThickness.toPx(),
             pathEffect = PathEffect.dashPathEffect(selectedLineStyle, phase = 0f)
@@ -774,5 +894,5 @@ internal fun Float.FloatToDp(): Float {
 //@Composable
 //@Preview(showBackground = true)
 //fun CustomComponentPreview() {
-//    CustomComponent()
+//    CandlestickChart()
 //}
