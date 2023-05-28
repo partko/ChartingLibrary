@@ -31,9 +31,12 @@ CandlestickChart(
 ```
 ### Example of data preparation:
 ```kotlin
+val candles = mutableListOf<CandleFeed>()
+
 for (i in 0..100) {
-    val candles = mutableListOf<CandleFeed>()
+    
     ...
+
     candles.add(
         CandleFeed(
             open.toFloat(),
@@ -132,3 +135,16 @@ fun updateСandleFeed {
 - `negativeCandleColor` color of the drop candle
 - `dojiCandleColor` color of the candle with the same opening and closing price
 - `endButtonColor` color of to the end button
+
+## Area Chart
+![AreaChart](img/AreaChart.png)
+> Traditional price change chart with a gradient
+### Creating Data Feed:
+
+to create a feed you need to pass MutableList of `AreaFeed`, where the time is a unix-time string:
+```kotlin
+data class AreaFeed(
+    val price: Float,
+    val time: String
+)
+```
