@@ -29,6 +29,8 @@ import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import com.example.candlestickchart.ui.theme.CandlestickChartTheme
 import com.example.chartinglibrary.TimeData
+import com.example.chartinglibrary.area.AreaChart
+import com.example.chartinglibrary.area.AreaFeed
 import com.example.chartinglibrary.candle.CandleFeed
 import com.example.chartinglibrary.candle.CandlestickChart
 import org.json.JSONException
@@ -48,6 +50,7 @@ class MainActivity : ComponentActivity() {
         to: String,
         limit: String,
         candlesFeed: MutableState<MutableList<CandleFeed>>,
+        areaFeed: MutableState<MutableList<AreaFeed>>,
         timeFormat: MutableState<List<String>>,
         reDraw: MutableState<Boolean>) {
         //https://api.polygon.io/v2/aggs/ticker/AAPL/range/1/day/2023-01-09/2023-01-09?adjusted=true&sort=asc&limit=120&apiKey=fVYFzwwxhgYGobQCWje8h9oYE5pufXvm
@@ -60,7 +63,9 @@ class MainActivity : ComponentActivity() {
                 //result -> Log.d("debug", "Result: $result")
                 //result -> parseData(result)
                 result ->
-                candlesFeed.value = parseData(result)
+                val (list, list1) = parseData(result)
+                candlesFeed.value = list
+                areaFeed.value = list1
 
                 when (timespan) {
                     "minute" -> timeFormat.value = listOf(TimeData.HOUR.index, ":00")
@@ -83,11 +88,12 @@ class MainActivity : ComponentActivity() {
         queue.add(request)
     }
 
-    private fun parseData(result: String): MutableList<CandleFeed> {
+    private fun parseData(result: String): Pair<MutableList<CandleFeed>, MutableList<AreaFeed>> {
         val root = JSONObject(result)
         try {
             val results = root.getJSONArray("results")
             val candles = mutableListOf<CandleFeed>()
+            val area = mutableListOf<AreaFeed>()
             Log.d("debug", results.length().toString())
             for (i in 0 until results.length()) {
                 val currentCandle = results.getJSONObject(i)
@@ -100,14 +106,20 @@ class MainActivity : ComponentActivity() {
                         currentCandle.getString("t").toString()
                     )
                 )
+                area.add(
+                    AreaFeed(
+                        currentCandle.getString("o").toFloat(),
+                        currentCandle.getString("t").toString()
+                    )
+                )
             }
             //Log.d("debug", "Result: ${candles[1][0]}")
             //showList(candles)
-//            if (candles.size > 8000) candles.removeRange(8000..candles.size)
             if (candles.size > 3000) candles.removeRange(3000..candles.size)
-            return candles
+            if (area.size > 3000) area.removeRange(3000..area.size)
+            return Pair(candles, area)
         } catch (e: JSONException) {
-            return mutableListOf<CandleFeed>()
+            return Pair(mutableListOf<CandleFeed>(), mutableListOf<AreaFeed>())
         }
     }
 
@@ -137,6 +149,7 @@ class MainActivity : ComponentActivity() {
                 val generateNew = remember{mutableStateOf("true")}
 
                 val candleFeed = remember { mutableStateOf(mutableListOf<CandleFeed>()) }
+                val areaFeed = remember { mutableStateOf(mutableListOf<AreaFeed>()) }
                 val timeFormat = remember { mutableStateOf(listOf<String>()) }
                 val selectedTimeFormat = remember { mutableStateOf(listOf<String>()) }
 
@@ -213,6 +226,37 @@ class MainActivity : ComponentActivity() {
                             reDraw = reDraw.value,
                             liveUpdate = liveUpdate.value
                         )
+                        AreaChart(
+                            areaFeed = areaFeed.value,
+                            timeFormat = timeFormat.value,
+                            selectedTimeFormat = selectedTimeFormat.value,
+                            priceTagsCount = priceTagsCount.value,
+                            minIndent = minIndent.value,
+                            dateOffset = dateOffset.value,
+                            chartWidth = GetWidth() * chartWidth.value,
+                            chartHeight = GetHeight() * chartHeight.value,
+                            rightBarWidth = rightBarWidth.value,
+                            bottomBarHeight = bottomBarHeight.value,
+                            candleWidth = candleWidth.value,
+                            gapWidth = gapWidth.value,
+                            topOffset = topOffset.value,
+                            rightBarTextSize = rightBarTextSize.value,
+                            significantDigits = significantDigits.value,
+                            priceLineThickness = priceLineThickness.value,
+                            //priceLineStyle = floatArrayOf(30f, 10f, 10f, 10f),
+                            selectedLineThickness = selectedLineThickness.value,
+                            //selectedLineStyle = floatArrayOf(10f, 10f),
+                            endButtonSize = endButtonSize.value,
+                            backgroundColor = Color(backgroundColor.value[0].toInt(), backgroundColor.value[1].toInt(), backgroundColor.value[2].toInt(), backgroundColor.value[3].toInt()),
+                            rightBarColor = Color(rightBarColor.value[0].toInt(), rightBarColor.value[1].toInt(), rightBarColor.value[2].toInt(), rightBarColor.value[3].toInt()),
+                            textColor = Color(textColor.value[0].toInt(), textColor.value[1].toInt(), textColor.value[2].toInt(), textColor.value[3].toInt()),
+                            separatorColor = Color(separatorColor.value[0].toInt(), separatorColor.value[1].toInt(), separatorColor.value[2].toInt(), separatorColor.value[3].toInt()),
+                            priceColor = Color(priceColor.value[0].toInt(), priceColor.value[1].toInt(), priceColor.value[2].toInt(), priceColor.value[3].toInt()),
+                            selectedColor = Color(selectedColor.value[0].toInt(), selectedColor.value[1].toInt(), selectedColor.value[2].toInt(), selectedColor.value[3].toInt()),
+                            endButtonColor = Color(endButtonColor.value[0].toInt(), endButtonColor.value[1].toInt(), endButtonColor.value[2].toInt(), endButtonColor.value[3].toInt()),
+                            reDraw = reDraw.value,
+                            liveUpdate = liveUpdate.value
+                        )
                         Text(text = "", modifier = Modifier.height(2.dp))
                         Row {
                             TextField(
@@ -274,7 +318,7 @@ class MainActivity : ComponentActivity() {
                             onClick = {
                                 mainHandler.removeCallbacksAndMessages(null)
                                 selectedTimeFormat.value = listOf(TimeData.DAY.index, " ", TimeData.MONTH_SHORT.index, " ", TimeData.HOUR.index, ":", TimeData.MINUTE.index)
-                                requestData(ticker.value, "1", timespan.value, from.value, to.value, "50000", candleFeed, timeFormat, reDraw)
+                                requestData(ticker.value, "1", timespan.value, from.value, to.value, "50000", candleFeed, areaFeed, timeFormat, reDraw)
                             }){
                             Text(text = "Upload Stock Data")
                         }
@@ -356,17 +400,20 @@ class MainActivity : ComponentActivity() {
                                     candleCount.value = newCandleCount.value
                                     generateNew.value = newGenerateNew.value
 
-                                    val randomCandles: MutableList<CandleFeed> = generateRandomData(startPrice.value.toFloat().toInt(), endPrice.value.toFloat().toInt(), candleCount.value.toInt())
+                                    val randomCandles = generateRandomData(startPrice.value.toFloat().toInt(), endPrice.value.toFloat().toInt(), candleCount.value.toInt())
                                     if(generateNew.value.toBoolean()) {
                                         reDraw.value = !reDraw.value
                                         candleFeed.value = mutableListOf<CandleFeed>()
+                                        areaFeed.value = mutableListOf<AreaFeed>()
+
                                         val updateTask = object : Runnable {
                                             override fun run() {
                                                 // ConstraintLayout limit is no more than 260000 pixels
                                                 if (candleFeed.value.size * (candleWidth.value.value.dpToFloat() + gapWidth.value.value.dpToFloat()) + rightBarWidth.value.value.dpToFloat() < 260000) {
                                                     mainHandler.postDelayed(this, 1000)
-                                                    addRandomCandle(startPrice.value.toFloat().toInt(), endPrice.value.toFloat().toInt(), randomCandles)
-                                                    candleFeed.value = randomCandles
+                                                    addRandomCandle(startPrice.value.toFloat().toInt(), endPrice.value.toFloat().toInt(), randomCandles.first, randomCandles.second)
+                                                    candleFeed.value = randomCandles.first
+                                                    areaFeed.value = randomCandles.second
                                                     liveUpdate.value = !liveUpdate.value
                                                 } else {
                                                     mainHandler.removeCallbacksAndMessages(null)
@@ -380,7 +427,8 @@ class MainActivity : ComponentActivity() {
                                     } else {
                                         //liveUpdate.value = !liveUpdate.value
                                         reDraw.value = !reDraw.value
-                                        candleFeed.value = randomCandles
+                                        candleFeed.value = randomCandles.first
+                                        areaFeed.value = randomCandles.second
                                         //liveUpdate.value = !liveUpdate.value
                                         //reDraw.value = !reDraw.value
                                     }
@@ -730,7 +778,7 @@ class MainActivity : ComponentActivity() {
     }
 
 
-    private fun generateRandomData(startPrice: Int, endPrice: Int, candleCount: Int, previousCandleClose: Int = -1): MutableList<CandleFeed> {
+    private fun generateRandomData(startPrice: Int, endPrice: Int, candleCount: Int, previousCandleClose: Int = -1): Pair<MutableList<CandleFeed>, MutableList<AreaFeed>> {
         val priceRange = endPrice - startPrice
 
         var prevCandleClose: Int
@@ -751,7 +799,8 @@ class MainActivity : ComponentActivity() {
         var close: Int
         var max: Int
         var min: Int
-        val randomData = mutableListOf<CandleFeed>()
+        val randomDataCandle = mutableListOf<CandleFeed>()
+        val randomDataArea = mutableListOf<AreaFeed>()
 
         val unixTime = System.currentTimeMillis()
         //Log.d("debug", "unixTime, $unixTime")
@@ -820,23 +869,31 @@ class MainActivity : ComponentActivity() {
                 max = (open..open + topShadowHeight.toInt()).random()
                 min = (close - bottomShadowHeight.toInt()..close).random()
             }
-            randomData.add(
+            randomDataCandle.add(
                 CandleFeed(
-                open.toFloat(),
-                close.toFloat(),
-                max.toFloat(),
-                min.toFloat(),
-                (unixTime - (candleCount - i) * 1000).toString()
+                    open.toFloat(),
+                    close.toFloat(),
+                    max.toFloat(),
+                    min.toFloat(),
+                    (unixTime - (candleCount - i) * 1000).toString()
+                )
+            )
+            randomDataArea.add(
+                AreaFeed(
+                    open.toFloat(),
+                    (unixTime - (candleCount - i) * 1000).toString()
                 )
             )
 
-            prevCandleClose = randomData[randomData.size-1].close.toInt()
+            prevCandleClose = randomDataCandle[randomDataCandle.size-1].close.toInt()
         }
-        return randomData
+        return Pair(randomDataCandle, randomDataArea)
     }
 
-    private fun addRandomCandle(startPrice: Int, endPrice: Int, candlesList: MutableList<CandleFeed>) {
-        candlesList.add(generateRandomData(startPrice, endPrice, 1, candlesList[candlesList.size-1].close.toInt())[0])
+    private fun addRandomCandle(startPrice: Int, endPrice: Int, candlesList: MutableList<CandleFeed>, areaList: MutableList<AreaFeed>) {
+        val pair = generateRandomData(startPrice, endPrice, 1, candlesList[candlesList.size-1].close.toInt())
+        candlesList.add(pair.first[0])
+        areaList.add(pair.second[0])
     }
 
 }
