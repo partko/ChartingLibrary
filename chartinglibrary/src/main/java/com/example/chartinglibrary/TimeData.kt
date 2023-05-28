@@ -17,15 +17,3 @@ enum class TimeData(val index: String) {
 fun getTimeIndex(time: TimeData): String {
     return time.index
 }
-
-fun convertTime(unixTime: String): MutableList<String> {
-    val dateFormat = SimpleDateFormat("yyyy MM MMM MMM dd HH mm ss", Locale.ENGLISH)
-    return getDateString(unixTime, dateFormat)
-}
-
-fun stringToWords(s : String) = s.trim().splitToSequence(' ')
-    .filter { it.isNotEmpty() } // or: .filter { it.isNotBlank() }
-    .toMutableList()
-
-
-fun getDateString(time: String, dateFormat: SimpleDateFormat) : MutableList<String> = stringToWords(dateFormat.format(time.toLong()))

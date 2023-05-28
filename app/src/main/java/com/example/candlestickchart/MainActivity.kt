@@ -1,20 +1,17 @@
 package com.example.candlestickchart
 
-import android.graphics.drawable.Icon
-import android.os.AsyncTask
+import android.content.res.Resources
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.util.Size
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
@@ -23,33 +20,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.modifier.modifierLocalConsumer
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.toSize
 import androidx.constraintlayout.compose.ConstraintLayout
-import androidx.core.content.ContentProviderCompat.requireContext
 import com.android.volley.Request
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import com.example.candlestickchart.ui.theme.CandlestickChartTheme
 import com.example.chartinglibrary.TimeData
+import com.example.chartinglibrary.candle.CandleFeed
 import com.example.chartinglibrary.candle.CandlestickChart
-import com.example.chartinglibrary.convertTime
-import com.example.chartinglibrary.getTimeIndex
 import org.json.JSONException
 import org.json.JSONObject
 import kotlin.random.Random
-import java.text.SimpleDateFormat
-import java.util.*
 
 const val API_KEY = "fVYFzwwxhgYGobQCWje8h9oYE5pufXvm"
 
@@ -63,8 +47,7 @@ class MainActivity : ComponentActivity() {
         from: String,
         to: String,
         limit: String,
-        candlesList: MutableState<MutableList<List<Float>>>,
-        timestampsList: MutableState<MutableList<MutableList<String>>>,
+        candlesFeed: MutableState<MutableList<CandleFeed>>,
         timeFormat: MutableState<List<String>>,
         reDraw: MutableState<Boolean>) {
         //https://api.polygon.io/v2/aggs/ticker/AAPL/range/1/day/2023-01-09/2023-01-09?adjusted=true&sort=asc&limit=120&apiKey=fVYFzwwxhgYGobQCWje8h9oYE5pufXvm
@@ -76,18 +59,17 @@ class MainActivity : ComponentActivity() {
             {
                 //result -> Log.d("debug", "Result: $result")
                 //result -> parseData(result)
-                    result ->
-                val (list, list1) = parseData(result)
-                candlesList.value = list
-                timestampsList.value = list1
+                result ->
+                candlesFeed.value = parseData(result)
+
                 when (timespan) {
-                    "minute" -> timeFormat.value = listOf<String>(TimeData.HOUR.index, ":00")
-                    "hour" -> timeFormat.value = listOf<String>(TimeData.DAY.index, " ", TimeData.MONTH_SHORT.index)
-                    "day" -> timeFormat.value = listOf<String>(TimeData.MONTH_FULL.index)
-                    "week" -> timeFormat.value = listOf<String>(TimeData.MONTH_SHORT.index)
-                    "month" -> timeFormat.value = listOf<String>(TimeData.YEAR.index)
-                    "quarter" -> timeFormat.value = listOf<String>(TimeData.YEAR.index)
-                    "year" -> timeFormat.value = listOf<String>(TimeData.YEAR.index)
+                    "minute" -> timeFormat.value = listOf(TimeData.HOUR.index, ":00")
+                    "hour" -> timeFormat.value = listOf(TimeData.DAY.index, " ", TimeData.MONTH_SHORT.index)
+                    "day" -> timeFormat.value = listOf(TimeData.MONTH_FULL.index)
+                    "week" -> timeFormat.value = listOf(TimeData.MONTH_SHORT.index)
+                    "month" -> timeFormat.value = listOf(TimeData.YEAR.index)
+                    "quarter" -> timeFormat.value = listOf(TimeData.YEAR.index)
+                    "year" -> timeFormat.value = listOf(TimeData.YEAR.index)
                     else -> {
                         timeFormat.value = listOf<String>()
                     }
@@ -101,31 +83,31 @@ class MainActivity : ComponentActivity() {
         queue.add(request)
     }
 
-
-    private fun parseData(result: String): Pair<MutableList<List<Float>>, MutableList<MutableList<String>>> {
+    private fun parseData(result: String): MutableList<CandleFeed> {
         val root = JSONObject(result)
         try {
             val results = root.getJSONArray("results")
-            val candles = MutableList(0) { List(4) { 0f } } //open, close, max, min
+            val candles = mutableListOf<CandleFeed>()
             Log.d("debug", results.length().toString())
-            val timestamps = MutableList(0) { MutableList(4) { "" } }
             for (i in 0 until results.length()) {
                 val currentCandle = results.getJSONObject(i)
-                candles.add(listOf(
-                    currentCandle.getString("o").toFloat(),
-                    currentCandle.getString("c").toFloat(),
-                    currentCandle.getString("h").toFloat(),
-                    currentCandle.getString("l").toFloat(),))
-                timestamps.add(convertTime(currentCandle.getString("t")))
+                candles.add(
+                    CandleFeed(
+                        currentCandle.getString("o").toFloat(),
+                        currentCandle.getString("c").toFloat(),
+                        currentCandle.getString("h").toFloat(),
+                        currentCandle.getString("l").toFloat(),
+                        currentCandle.getString("t").toString()
+                    )
+                )
             }
             //Log.d("debug", "Result: ${candles[1][0]}")
             //showList(candles)
-//            //больше 250000 пикселей - ошибка
 //            if (candles.size > 8000) candles.removeRange(8000..candles.size)
-            if (candles.size > 2000) candles.removeRange(2000..candles.size)
-            return Pair(candles, timestamps)
+            if (candles.size > 3000) candles.removeRange(3000..candles.size)
+            return candles
         } catch (e: JSONException) {
-            return Pair(mutableListOf<List<Float>>(), mutableListOf<MutableList<String>>())
+            return mutableListOf<CandleFeed>()
         }
     }
 
@@ -154,8 +136,7 @@ class MainActivity : ComponentActivity() {
                 val candleCount = remember{mutableStateOf("500")}
                 val generateNew = remember{mutableStateOf("true")}
 
-                val candles = remember { mutableStateOf(mutableListOf<List<Float>>()) }
-                val timestamps = remember { mutableStateOf(mutableListOf<MutableList<String>>()) }
+                val candleFeed = remember { mutableStateOf(mutableListOf<CandleFeed>()) }
                 val timeFormat = remember { mutableStateOf(listOf<String>()) }
                 val selectedTimeFormat = remember { mutableStateOf(listOf<String>()) }
 
@@ -189,7 +170,6 @@ class MainActivity : ComponentActivity() {
                 val textColor = remember{mutableStateOf(listOf("255", "255", "255", "255"))}
                 val separatorColor = remember{mutableStateOf(listOf("71", "74", "81", "255"))}
 
-
                 // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -199,8 +179,7 @@ class MainActivity : ComponentActivity() {
                         .verticalScroll(rememberScrollState())
                     ) {
                         CandlestickChart(
-                            candles = candles.value,
-                            timestamps = timestamps.value,
+                            candleFeed = candleFeed.value,
                             timeFormat = timeFormat.value,
                             selectedTimeFormat = selectedTimeFormat.value,
                             priceTagsCount = priceTagsCount.value,
@@ -235,7 +214,7 @@ class MainActivity : ComponentActivity() {
                             liveUpdate = liveUpdate.value
                         )
                         Text(text = "", modifier = Modifier.height(2.dp))
-                        Row() {
+                        Row {
                             TextField(
                                 modifier = Modifier
                                     .width(GetWidth() / 2),
@@ -246,7 +225,7 @@ class MainActivity : ComponentActivity() {
                             )
                             var expandedTimespan by remember { mutableStateOf(false) }
                             val timespanList = listOf("minute", "hour", "day", "week", "month", "quarter", "year")
-                            Column() {
+                            Column {
                                 TextField(
                                     enabled = false,
                                     value = timespan.value,
@@ -272,7 +251,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-                        Row() {
+                        Row {
                             TextField(
                                 modifier = Modifier
                                     .width(GetWidth() / 2),
@@ -295,16 +274,16 @@ class MainActivity : ComponentActivity() {
                             onClick = {
                                 mainHandler.removeCallbacksAndMessages(null)
                                 selectedTimeFormat.value = listOf(TimeData.DAY.index, " ", TimeData.MONTH_SHORT.index, " ", TimeData.HOUR.index, ":", TimeData.MINUTE.index)
-                                requestData(ticker.value, "1", timespan.value, from.value, to.value, "50000", candles, timestamps, timeFormat, reDraw)
+                                requestData(ticker.value, "1", timespan.value, from.value, to.value, "50000", candleFeed, timeFormat, reDraw)
                             }){
                             Text(text = "Upload Stock Data")
                         }
 
-                        val newStartPrice = remember{ mutableStateOf(startPrice.value.toString()) }
-                        val newEndPrice = remember{ mutableStateOf(endPrice.value.toString()) }
-                        val newCandleCount = remember{ mutableStateOf(candleCount.value.toString()) }
-                        val newGenerateNew = remember{ mutableStateOf(generateNew.value.toString()) }
-                        Row() {
+                        val newStartPrice = remember{ mutableStateOf(startPrice.value) }
+                        val newEndPrice = remember{ mutableStateOf(endPrice.value) }
+                        val newCandleCount = remember{ mutableStateOf(candleCount.value) }
+                        val newGenerateNew = remember{ mutableStateOf(generateNew.value) }
+                        Row {
                             TextField(
                                 modifier = Modifier
                                     .width(GetWidth() / 2),
@@ -322,7 +301,7 @@ class MainActivity : ComponentActivity() {
                                 placeholder = { Text("5700") }
                             )
                         }
-                        Row() {
+                        Row {
                             TextField(
                                 modifier = Modifier
                                     .width(GetWidth() / 2),
@@ -334,7 +313,7 @@ class MainActivity : ComponentActivity() {
 
                             var mExpanded by remember { mutableStateOf(false) }
                             val booleanList = listOf("true", "false")
-                            Column() {
+                            Column {
                                 TextField(
                                     enabled = false,
                                     value = newGenerateNew.value,
@@ -364,44 +343,56 @@ class MainActivity : ComponentActivity() {
                         Button(modifier = Modifier
                             .width(GetWidth()),
                             onClick = {
-                                mainHandler.removeCallbacksAndMessages(null)
-                                selectedTimeFormat.value = listOf(TimeData.DAY.index, " ", TimeData.MONTH_SHORT.index, " ", TimeData.HOUR.index, ":", TimeData.MINUTE.index, ":", TimeData.SECOND.index)
+                                // ConstraintLayout limit is no more than 260000 pixels
+                                if (newCandleCount.value.toInt() * (candleWidth.value.value.dpToFloat() + gapWidth.value.value.dpToFloat()) + rightBarWidth.value.value.dpToFloat() < 260000) {
+                                    mainHandler.removeCallbacksAndMessages(null)
+                                    selectedTimeFormat.value = listOf(TimeData.DAY.index, " ", TimeData.MONTH_SHORT.index, " ", TimeData.HOUR.index, ":", TimeData.MINUTE.index, ":", TimeData.SECOND.index)
 
-                                timeFormat.value = listOf(TimeData.HOUR.index, " : ", TimeData.MINUTE.index, " : ", TimeData.SECOND.index)
-                                timestamps.value = MutableList(0) { MutableList(4) { "" } }
+                                    timeFormat.value = listOf(TimeData.HOUR.index, " : ", TimeData.MINUTE.index, " : ", TimeData.SECOND.index)
 
-                                startPrice.value = newStartPrice.value
-                                endPrice.value = newEndPrice.value
-                                candleCount.value = newCandleCount.value
-                                generateNew.value = newGenerateNew.value
+                                    startPrice.value = newStartPrice.value
+                                    endPrice.value = newEndPrice.value
 
-                                //candles.value = generateRandomData(startPrice.value.toInt(), endPrice.value.toInt(), candleCount.value.toInt(), timestamps)
-                                var randomCandles = mutableListOf<List<Float>>()
-                                randomCandles = generateRandomData(startPrice.value.toInt(), endPrice.value.toInt(), candleCount.value.toInt(), timestamps)
-                                if(generateNew.value.toBoolean()) {
-                                    reDraw.value = !reDraw.value
-                                    val updateTask = object : Runnable {
-                                        override fun run() {
-                                            mainHandler.postDelayed(this, 1000)
-                                            addRandomCandle(startPrice.value.toInt(), endPrice.value.toInt(), randomCandles, timestamps)
-                                            //addRandomCandle(startPrice.value.toInt(), endPrice.value.toInt(), randomCandles, unixTime)
-                                            candles.value = randomCandles
-                                            liveUpdate.value = !liveUpdate.value
+                                    candleCount.value = newCandleCount.value
+                                    generateNew.value = newGenerateNew.value
+
+                                    val randomCandles: MutableList<CandleFeed> = generateRandomData(startPrice.value.toFloat().toInt(), endPrice.value.toFloat().toInt(), candleCount.value.toInt())
+                                    if(generateNew.value.toBoolean()) {
+                                        reDraw.value = !reDraw.value
+                                        candleFeed.value = mutableListOf<CandleFeed>()
+                                        val updateTask = object : Runnable {
+                                            override fun run() {
+                                                // ConstraintLayout limit is no more than 260000 pixels
+                                                if (candleFeed.value.size * (candleWidth.value.value.dpToFloat() + gapWidth.value.value.dpToFloat()) + rightBarWidth.value.value.dpToFloat() < 260000) {
+                                                    mainHandler.postDelayed(this, 1000)
+                                                    addRandomCandle(startPrice.value.toFloat().toInt(), endPrice.value.toFloat().toInt(), randomCandles)
+                                                    candleFeed.value = randomCandles
+                                                    liveUpdate.value = !liveUpdate.value
+                                                } else {
+                                                    mainHandler.removeCallbacksAndMessages(null)
+                                                    val toast = Toast.makeText(applicationContext, "the maximum number of candles has been reached", Toast.LENGTH_LONG)
+                                                    toast.show()
+                                                }
+                                            }
                                         }
+                                        //mainHandler = Handler(Looper.getMainLooper())
+                                        mainHandler.post(updateTask)
+                                    } else {
+                                        //liveUpdate.value = !liveUpdate.value
+                                        reDraw.value = !reDraw.value
+                                        candleFeed.value = randomCandles
+                                        //liveUpdate.value = !liveUpdate.value
+                                        //reDraw.value = !reDraw.value
                                     }
-                                    //mainHandler = Handler(Looper.getMainLooper())
-                                    mainHandler.post(updateTask)
                                 } else {
-                                    //liveUpdate.value = !liveUpdate.value
-                                    reDraw.value = !reDraw.value
-                                    candles.value = randomCandles
-                                    //liveUpdate.value = !liveUpdate.value
-                                    //reDraw.value = !reDraw.value
+                                    val toast = Toast.makeText(applicationContext, "At the current settings, the maximum number of candles is ${((260000 - rightBarWidth.value.value.dpToFloat()) / (candleWidth.value.value.dpToFloat() + gapWidth.value.value.dpToFloat())).toInt() - 1}", Toast.LENGTH_LONG)
+                                    toast.show()
                                 }
+
                             }){
                             Text(text = "Generate Random Data")
                         }
-                        ConstraintLayout() {
+                        ConstraintLayout {
                             Column(modifier = Modifier
                                 .fillMaxWidth()
                                 .fillMaxHeight(),
@@ -415,7 +406,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     if (showSettings.value) {
-                        ConstraintLayout() {
+                        ConstraintLayout {
                             val newChartWidth = remember{mutableStateOf(chartWidth.value.toString())}
                             val newChartHeight = remember{mutableStateOf(chartHeight.value.toString())}
                             val newRightBarWidth = remember{mutableStateOf(rightBarWidth.value.toString().removeSuffix(".dp"))}
@@ -451,7 +442,7 @@ class MainActivity : ComponentActivity() {
                                     .background(Color.Gray)
                                     .verticalScroll(rememberScrollState())
                             ) {
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -469,7 +460,7 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("0.5") }
                                     )
                                 }
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -487,7 +478,7 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("20") }
                                     )
                                 }
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -505,7 +496,7 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("2") }
                                     )
                                 }
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -523,7 +514,7 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("1") }
                                     )
                                 }
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -541,7 +532,7 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("20") }
                                     )
                                 }
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -559,7 +550,7 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("10") }
                                     )
                                 }
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -577,7 +568,7 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("4") }
                                     )
                                 }
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -595,7 +586,7 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("1") }
                                     )
                                 }
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -613,7 +604,7 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("37, 44, 46, 255") }
                                     )
                                 }
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -631,7 +622,7 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("255, 0, 0, 255") }
                                     )
                                 }
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -649,7 +640,7 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("255, 255, 255, 255") }
                                     )
                                 }
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -667,7 +658,7 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("106, 90, 205, 255") }
                                     )
                                 }
-                                Row() {
+                                Row {
                                     TextField(
                                         modifier = Modifier
                                             .width(GetWidth() / 2),
@@ -739,10 +730,10 @@ class MainActivity : ComponentActivity() {
     }
 
 
-    private fun generateRandomData(startPrice: Int, endPrice: Int, candleCount: Int, timestampsList: MutableState<MutableList<MutableList<String>>>, previousCandleClose: Int = -1): MutableList<List<Float>> {
+    private fun generateRandomData(startPrice: Int, endPrice: Int, candleCount: Int, previousCandleClose: Int = -1): MutableList<CandleFeed> {
         val priceRange = endPrice - startPrice
 
-        var prevCandleClose = 0
+        var prevCandleClose: Int
         if (previousCandleClose == -1) {
             prevCandleClose = (startPrice..endPrice).random()
         } else {
@@ -752,23 +743,20 @@ class MainActivity : ComponentActivity() {
         var candleHeight = 0f
         var topShadowHeight = 0f
         var bottomShadowHeight = 0f
-        var randomSeed1 = 0
-        var randomSeed2 = 0
-        var randomSeed3 = 0
-        var candleType = false
-        var open = 0
-        var close = 0
-        var max = 0
-        var min = 0
-        var randomData = MutableList(0) { List(4) { 0f } } //open, close, max, min
+        var randomSeed1: Int
+        var randomSeed2: Int
+        var randomSeed3: Int
+        var candleType: Boolean
+        var open: Int
+        var close: Int
+        var max: Int
+        var min: Int
+        val randomData = mutableListOf<CandleFeed>()
 
         val unixTime = System.currentTimeMillis()
         //Log.d("debug", "unixTime, $unixTime")
 
         for (i in 1..candleCount) {
-
-            timestampsList.value.add(convertTime((unixTime - (candleCount - i) * 1000).toString()))
-            //Log.d("debug", getDateString((unixTime - (candleCount - i) * 1000).toString()).toString())
 
             randomSeed1 = (0..1000).random()
             randomSeed2 = (0..10).random()
@@ -832,20 +820,25 @@ class MainActivity : ComponentActivity() {
                 max = (open..open + topShadowHeight.toInt()).random()
                 min = (close - bottomShadowHeight.toInt()..close).random()
             }
-            randomData.add(listOf(
+            randomData.add(
+                CandleFeed(
                 open.toFloat(),
                 close.toFloat(),
                 max.toFloat(),
                 min.toFloat(),
-            ))
-            prevCandleClose = randomData[randomData.size-1][1].toInt()
+                (unixTime - (candleCount - i) * 1000).toString()
+                )
+            )
+
+            prevCandleClose = randomData[randomData.size-1].close.toInt()
         }
         return randomData
     }
 
-    private fun addRandomCandle(startPrice: Int, endPrice: Int, candlesList: MutableList<List<Float>>, timestamps: MutableState<MutableList<MutableList<String>>>) {
-        candlesList.add(generateRandomData(startPrice, endPrice, 1, timestamps, candlesList[candlesList.size-1][1].toInt())[0])
+    private fun addRandomCandle(startPrice: Int, endPrice: Int, candlesList: MutableList<CandleFeed>) {
+        candlesList.add(generateRandomData(startPrice, endPrice, 1, candlesList[candlesList.size-1].close.toInt())[0])
     }
+
 }
 
 inline fun <reified T> MutableList<T>.removeRange(range: IntRange) {
@@ -871,18 +864,21 @@ inline fun <reified T> MutableList<T>.removeRange(range: IntRange) {
 }
 
 @Composable
-fun GetWidth() : Dp {
+fun GetWidth(): Dp {
     val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
-    return screenWidth
-}
-@Composable
-fun GetHeight() : Dp {
-    val configuration = LocalConfiguration.current
-    val screenHeight = configuration.screenHeightDp.dp
-    return screenHeight
+    return configuration.screenWidthDp.dp
 }
 
+@Composable
+fun GetHeight(): Dp {
+    val configuration = LocalConfiguration.current
+    return configuration.screenHeightDp.dp
+}
+
+internal fun Float.dpToFloat(): Float {
+    val scale = Resources.getSystem().displayMetrics.density
+    return (this * scale)
+}
 //@Preview(showBackground = true)
 //@Composable
 //fun DefaultPreview() {
