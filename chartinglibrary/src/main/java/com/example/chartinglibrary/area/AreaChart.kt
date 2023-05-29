@@ -38,6 +38,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.*
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.core.text.isDigitsOnly
+import com.example.chartinglibrary.candle.dpToFloat
 import java.math.RoundingMode
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -50,19 +51,19 @@ import java.util.Locale
  * at the bottom of the chart.
  * @param selectedTimeFormat List of strings responsible for formatting the date and time displayed
  * at the bottom of the chart when the candle is highlighted.
+ * @param chartWidth the width of the chart in Dp.
+ * @param chartHeight the height of the chart in Dp.
  * @param priceTagsCount the number of price tags, not counting the maximum and minimum price tags,
  * located to the right on the chart.
  * @param minIndent the minimum distance between the time tags, measured in the number of candles.
  * @param dateOffset offset of the time tags, measured in the number of candles.
- * @param chartWidth the width of the chart in Dp.
- * @param chartHeight the height of the chart in Dp.
- * @param candleWidth candle thickness in Dp.
- * @param gapWidth the thickness of the gap between the candles in Dp.
- * @param topOffset indentation at the top of the chart.
+ * @param priceWidth distance between price points on the chart in Dp.
+ * @param topOffset indentation at the top of the chart in Dp.
  * @param rightBarWidth the thickness of the right panel in Dp.
  * @param rightBarTextSize the font size of the prices on the right panel.
  * @param significantDigits the number of digits after the decimal point in prices.
- * @param bottomBarHeight height of the bottom panel of the chart.
+ * @param bottomBarHeight height of the bottom panel of the chart in Dp.
+ * @param pricePathThickness the thickness of the price trajectory line in Dp.
  * @param priceLineThickness the thickness of the last price line in Dp.
  * @param priceLineStyle the effect of the last price line.
  * @param selectedLineThickness the thickness of the selected price line in Dp.
@@ -79,18 +80,18 @@ fun AreaChart(
     areaFeed: MutableList<AreaFeed>,
     timeFormat: List<String>,
     selectedTimeFormat: List<String>,
+    chartWidth: Dp = 300.dp,
+    chartHeight: Dp = 300.dp,
     priceTagsCount: Int = 4,
     minIndent: Int = 12,
     dateOffset: Int = 1,
-    chartWidth: Dp = 300.dp,
-    chartHeight: Dp = 300.dp,
-    candleWidth: Dp = 8.dp,
-    gapWidth: Dp = 2.dp,
+    priceWidth: Dp = 10.dp,
     topOffset: Dp = 8.dp,
     rightBarWidth: Dp = 50.dp,
     rightBarTextSize: Int = 10,
     significantDigits: Int = 2,
     bottomBarHeight: Dp = 20.dp,
+    pricePathThickness: Dp = 4.dp,
     priceLineThickness: Dp = 1.dp,
     priceLineStyle: FloatArray = floatArrayOf(30f, 10f, 10f, 10f),
     selectedLineThickness: Dp = 1.dp,
@@ -103,6 +104,9 @@ fun AreaChart(
     priceColor: Color = Color(0, 128, 255, 255),
     selectedColor: Color = Color(106, 90, 205, 255),
     endButtonColor: Color = Color.White,
+    pricePathColor: Color = Color.Blue,
+    gradientStartColor: Color = Color(0, 0, 255, 255),
+    gradientEndColor: Color = Color(0, 0, 255, 0),
     reDraw: Boolean = false,
     liveUpdate: Boolean = false,
 ) {
@@ -127,19 +131,19 @@ fun AreaChart(
 
     // the number of visible candles on the chart: Int
     val visibleCandles = remember {
-        mutableStateOf((chartWidth / (candleWidth + gapWidth)).toBigDecimal().setScale(1, RoundingMode.DOWN).toInt() + 1)
+        mutableStateOf((chartWidth / priceWidth).toBigDecimal().setScale(1, RoundingMode.DOWN).toInt() + 1)
     }
     //Log.d("debug", "visibleCandles = ${visibleCandles.value}")
 
     // the width of the (candle + indentation) in pixels: Float
     val candleWithSpaceInPx = remember {
-        mutableStateOf((candleWidth + gapWidth).value * screenDensity)
+        mutableStateOf(priceWidth.value * screenDensity)
     }
     //Log.d("debug", "candleWithSpace = ${candleWithSpaceInPx.value}")
 
     // the width of the (candle + indentation) in dp: Dp
     val candleWithSpaceInDp = remember {
-        mutableStateOf(candleWidth + gapWidth)
+        mutableStateOf(priceWidth)
     }
     //Log.d("debug", "candleWithSpaceInDp = ${candleWithSpaceInDp.value}")
 
@@ -244,7 +248,9 @@ fun AreaChart(
         return maxPrice
     }
 
-    if (areaFeed.isNotEmpty()) {
+    if (areaFeed.isNotEmpty() && areaFeed.size * priceWidth.value.dpToFloat() < 260000) {
+        Log.d("debug", "ConstraintLayout limitation = ${areaFeed.size * priceWidth.value.dpToFloat()}")
+
         val candlesCount = remember {
             mutableStateOf(areaFeed.size)
         }
@@ -346,9 +352,9 @@ fun AreaChart(
             selectedCandle.value = -1
             chartWidthInPx.value = chartWidth.toString().removeSuffix(".dp").toFloat().dpToFloat()
             rightBarWidthInPx.value = rightBarWidth.toString().removeSuffix(".dp").toFloat().dpToFloat()
-            visibleCandles.value = (chartWidth / (candleWidth + gapWidth)).toBigDecimal().setScale(1, RoundingMode.DOWN).toInt() + 1
-            candleWithSpaceInPx.value = (candleWidth + gapWidth).value * screenDensity
-            candleWithSpaceInDp.value = candleWidth + gapWidth
+            visibleCandles.value = (chartWidth / priceWidth).toBigDecimal().setScale(1, RoundingMode.DOWN).toInt() + 1
+            candleWithSpaceInPx.value = priceWidth.value * screenDensity
+            candleWithSpaceInDp.value = priceWidth
 
             scrollState.scrollTo(scrollState.maxValue)
             if (areaFeed.size >= (visibleCandles.value + 1))
@@ -402,7 +408,7 @@ fun AreaChart(
                             val selectedPos = it.x
                             //Log.d("debug", "selectedPos: " + selectedPos)
                             if (scrollState.value != 0) {
-                                if (selectedPos < (chartWidthInPx.value - rightBarWidthInPx.value + scrollState.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
+                                if (selectedPos < (chartWidthInPx.value - rightBarWidthInPx.value + scrollState.value - 1)) {
                                     selectedCandle.value =
                                         (selectedPos / (candleWithSpaceInDp.value)
                                             .toString()
@@ -411,7 +417,7 @@ fun AreaChart(
                                             .dpToFloat()).toInt()
                                 }
                             } else {
-                                if (selectedPos < (candleWithSpaceInPx.value * candlesCount.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
+                                if (selectedPos < (candleWithSpaceInPx.value * candlesCount.value - 1)) {
                                     selectedCandle.value =
                                         (selectedPos / (candleWithSpaceInDp.value)
                                             .toString()
@@ -436,7 +442,7 @@ fun AreaChart(
                                     .toInt()
                                 //Log.d("debug", "selectedPos: " + selectedPos)
                                 if (scrollState.value != 0) {
-                                    if (selectedPos < (chartWidthInPx.value - rightBarWidthInPx.value + scrollState.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
+                                    if (selectedPos < (chartWidthInPx.value - rightBarWidthInPx.value + scrollState.value - 1)) {
                                         selectedCandle.value =
                                             (selectedPos / (candleWithSpaceInDp.value)
                                                 .toString()
@@ -445,7 +451,7 @@ fun AreaChart(
                                                 .dpToFloat()).toInt()
                                     }
                                 } else {
-                                    if (selectedPos < (candleWithSpaceInPx.value * candlesCount.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
+                                    if (selectedPos < (candleWithSpaceInPx.value * candlesCount.value - 1)) {
                                         selectedCandle.value =
                                             (selectedPos / (candleWithSpaceInDp.value)
                                                 .toString()
@@ -492,20 +498,19 @@ fun AreaChart(
                         priceColor = priceColor,
                         selectedColor = selectedColor,
                         rightBarWidth = rightBarWidth,
-                        candleWidth = candleWidth,
-                        gapWidth = gapWidth,
-                        bottomBarHeight = bottomBarHeight
-                            .toString()
-                            .removeSuffix(".dp")
-                            .toFloat()
-                            .dpToFloat(),
+                        priceWidth = priceWidth,
+                        bottomBarHeight = bottomBarHeight.toPx(),
+                        pricePathThickness = pricePathThickness,
                         separatorColor = separatorColor,
                         topOffset = topOffset.toPx(),
                         selectedCandle = selectedCandle.value,
                         priceLineThickness = priceLineThickness,
                         priceLineStyle = priceLineStyle,
                         selectedLineThickness = selectedLineThickness,
-                        selectedLineStyle = selectedLineStyle
+                        selectedLineStyle = selectedLineStyle,
+                        pricePathColor = pricePathColor,
+                        gradientStartColor = gradientStartColor,
+                        gradientEndColor = gradientEndColor
                     )
                 }) {
 
@@ -524,18 +529,18 @@ fun AreaChart(
                                 color = textColor,
                                 fontSize = 12.sp,
                                 modifier = Modifier.offset(
-                                    x = ((candleWidth + gapWidth)*i),
-                                    y = chartHeight-16.dp))
+                                    x = (priceWidth * i),
+                                    y = chartHeight - 16.dp))
                             Canvas(modifier = Modifier
                                 .offset(x = 0.dp, y = 0.dp)) {
                                 drawLine(
                                     color = separatorColor,
                                     start = Offset(
-                                        x = ((candleWidth + gapWidth)*i).toPx() - (gapWidth * 0.5f).toPx(),
+                                        x = (priceWidth * i).toPx() - (priceWidth * 0.5f).toPx(),
                                         y = 0f
                                     ),
                                     end = Offset(
-                                        x = ((candleWidth + gapWidth)*i).toPx() - (gapWidth * 0.5f).toPx(),
+                                        x = (priceWidth * i).toPx() - (priceWidth * 0.5f).toPx(),
                                         y = chartHeight.toPx()
                                     ),
                                     strokeWidth = 0.5.dp.toPx(),
@@ -561,7 +566,7 @@ fun AreaChart(
                             contentAlignment = Alignment.BottomStart,
                             modifier = Modifier
                                 .offset(
-                                    x = ((candleWidth + gapWidth) * selectedCandle.value) - size.width.pxToDp() / 2,
+                                    x = (priceWidth * selectedCandle.value) - size.width.pxToDp() / 2,
                                     y = chartHeight - 16.dp
                                 )
                                 .background(selectedColor)
@@ -728,7 +733,7 @@ fun AreaChart(
                 }
             }
         }
-    } else {
+    } else if (areaFeed.isEmpty()) {
         ConstraintLayout {
             Box(modifier = Modifier
                 .size(width = chartWidth, height = chartHeight)
@@ -743,6 +748,21 @@ fun AreaChart(
                     fontSize = 24.sp)
             }
         }
+    } else {
+        ConstraintLayout {
+            Box(modifier = Modifier
+                .size(width = chartWidth, height = chartHeight)
+                .background(backgroundColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(modifier = Modifier
+                    .fillMaxWidth(1f),
+                    textAlign = TextAlign.Center,
+                    text = "Too much data. \nMaximum quantity = ${(260000 / priceWidth.value.dpToFloat()).toInt()}",
+                    color = textColor,
+                    fontSize = 16.sp)
+            }
+        }
     }
 }
 
@@ -755,21 +775,22 @@ fun DrawScope.backgroundCanvas(
     priceColor: Color,
     selectedColor: Color,
     rightBarWidth: Dp,
-    candleWidth: Dp,
-    gapWidth: Dp,
+    priceWidth: Dp,
     bottomBarHeight: Float,
+    pricePathThickness: Dp,
     separatorColor: Color,
     topOffset: Float,
     selectedCandle: Int,
     priceLineThickness: Dp,
     priceLineStyle: FloatArray,
     selectedLineThickness: Dp,
-    selectedLineStyle: FloatArray
-
+    selectedLineStyle: FloatArray,
+    pricePathColor: Color,
+    gradientStartColor: Color,
+    gradientEndColor: Color
 ) {
     val candleAreaHeight = componentSize.height - bottomBarHeight
     val deltaPrice = maxPrice - minPrice
-    val candleAndGapWidth = candleWidth + gapWidth
 
     // intermediate prices lines
     for (i in 1 until priceTagsCount + 1) {
@@ -807,7 +828,10 @@ fun DrawScope.backgroundCanvas(
     val points = mutableListOf<Offset>()
 
     for (i in candles.indices) {
-        points.add(Offset((candleAndGapWidth * i).toPx(), candleAreaHeight - (candles[i].price - minPrice) / deltaPrice * candleAreaHeight + topOffset))
+        points.add(Offset(
+            (priceWidth * i).toPx(),
+            candleAreaHeight - (candles[i].price - minPrice) / deltaPrice * candleAreaHeight + topOffset)
+        )
     }
 
     val pointsPath = Path().apply {
@@ -831,15 +855,15 @@ fun DrawScope.backgroundCanvas(
     drawPath(
         path = backgroundPath,
         brush = Brush.verticalGradient(
-            colors = listOf(Color(0, 0, 255, 255), Color(0, 0, 255, 0)),
+            colors = listOf(gradientStartColor, gradientEndColor),
             endY = componentSize.height
         ),
     )
 
     drawPath(
         path = pointsPath,
-        color = Color.Blue,
-        style = Stroke(10f),
+        color = pricePathColor,
+        style = Stroke(pricePathThickness.toPx()),
     )
 
     // perpendicular to the last price
@@ -866,11 +890,11 @@ fun DrawScope.backgroundCanvas(
         drawLine(
             color = selectedColor,
             start = Offset(
-                x = (candleAndGapWidth * selectedCandle).toPx(),
+                x = (priceWidth * selectedCandle).toPx(),
                 y = 0f
             ),
             end = Offset(
-                x = (candleAndGapWidth * selectedCandle).toPx(),
+                x = (priceWidth * selectedCandle).toPx(),
                 y = componentSize.height + topOffset
             ),
             strokeWidth = selectedLineThickness.toPx(),

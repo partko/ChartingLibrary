@@ -133,20 +133,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             CandlestickChartTheme {
-                val showSettings = remember{mutableStateOf(false)}
+                val showSettings = remember{ mutableStateOf(false) }
 
-                val reDraw = remember{mutableStateOf(false)}
-                val liveUpdate = remember{mutableStateOf(false)}
+                val reDraw = remember{ mutableStateOf(false) }
+                val liveUpdate = remember{ mutableStateOf(false) }
 
-                val ticker = remember{mutableStateOf("NVDA")}
-                val from = remember{mutableStateOf("2023-03-01")}
-                val to = remember{mutableStateOf("2023-05-20")}
-                val timespan = remember{mutableStateOf("hour")}
+                val ticker = remember{ mutableStateOf("NVDA") }
+                val from = remember{ mutableStateOf("2023-03-01") }
+                val to = remember{ mutableStateOf("2023-05-20") }
+                val timespan = remember{ mutableStateOf("hour") }
 
-                val startPrice = remember{mutableStateOf("4300")}
-                val endPrice = remember{mutableStateOf("5700")}
-                val candleCount = remember{mutableStateOf("500")}
-                val generateNew = remember{mutableStateOf("true")}
+                val startPrice = remember{ mutableStateOf("4300") }
+                val endPrice = remember{ mutableStateOf("5700") }
+                val candleCount = remember{ mutableStateOf("500") }
+                val generateNew = remember{ mutableStateOf("true") }
 
                 val candleFeed = remember { mutableStateOf(mutableListOf<CandleFeed>()) }
                 val areaFeed = remember { mutableStateOf(mutableListOf<AreaFeed>()) }
@@ -155,33 +155,40 @@ class MainActivity : ComponentActivity() {
 
                 mainHandler = Handler(Looper.getMainLooper())
 
-                val chartWidth = remember{mutableStateOf(1f)}
-                val chartHeight = remember{mutableStateOf(0.5f)}
-                val rightBarWidth = remember{mutableStateOf(50.dp)}
-                val bottomBarHeight = remember{mutableStateOf(20.dp)}
-                val candleWidth = remember{mutableStateOf(8.dp)}
-                val gapWidth = remember{mutableStateOf(2.dp)}
-                val priceLineThickness = remember{mutableStateOf(1.dp)}
-                val selectedLineThickness = remember{mutableStateOf(1.dp)}
-                val dojiCandleThickness = remember{mutableStateOf(1.dp)}
-                val endButtonSize = remember{mutableStateOf(20.dp)}
-                val topOffset = remember{mutableStateOf(8.dp)}
-                val rightBarTextSize = remember{mutableStateOf(10)}
-                val significantDigits = remember{mutableStateOf(2)}
-                val priceTagsCount = remember{mutableStateOf(4)}
-                val minIndent = remember{mutableStateOf(12)}
-                val dateOffset = remember{mutableStateOf(1)}
+                val chartWidth = remember{ mutableStateOf(1f) }
+                val chartHeight = remember{ mutableStateOf(0.4f) }
+                val rightBarWidth = remember{ mutableStateOf(50.dp) }
+                val bottomBarHeight = remember{ mutableStateOf(20.dp) }
+                val candleWidth = remember{ mutableStateOf(8.dp) }
+                val gapWidth = remember{ mutableStateOf(2.dp) }
+                val priceLineThickness = remember{ mutableStateOf(1.dp) }
+                val selectedLineThickness = remember{ mutableStateOf(1.dp) }
+                val dojiCandleThickness = remember{ mutableStateOf(1.dp) }
+                val endButtonSize = remember{ mutableStateOf(20.dp) }
+                val topOffset = remember{ mutableStateOf(8.dp) }
+                val rightBarTextSize = remember{ mutableStateOf(10) }
+                val significantDigits = remember{ mutableStateOf(2) }
+                val priceTagsCount = remember{ mutableStateOf(4) }
+                val minIndent = remember{ mutableStateOf(12) }
+                val dateOffset = remember{ mutableStateOf(1) }
 
-                val backgroundColor = remember{mutableStateOf(listOf("41", "49", "51", "255"))}
-                val rightBarColor = remember{mutableStateOf(listOf("37", "44", "46", "255"))}
-                val positiveCandleColor = remember{mutableStateOf(listOf("0", "255", "0", "255"))}
-                val negativeCandleColor = remember{mutableStateOf(listOf("255", "0", "0", "255"))}
-                val dojiCandleColor = remember{mutableStateOf(listOf("255", "255", "255", "255"))}
-                val endButtonColor = remember{mutableStateOf(listOf("255", "255", "255", "255"))}
-                val priceColor = remember{mutableStateOf(listOf("0", "128", "255", "255"))}
-                val selectedColor = remember{mutableStateOf(listOf("106", "90", "205", "255"))}
-                val textColor = remember{mutableStateOf(listOf("255", "255", "255", "255"))}
-                val separatorColor = remember{mutableStateOf(listOf("71", "74", "81", "255"))}
+                val priceWidth = remember{ mutableStateOf(10.dp) }
+                val pricePathThickness = remember{ mutableStateOf(4.dp) }
+
+                val backgroundColor = remember{ mutableStateOf(listOf("41", "49", "51", "255")) }
+                val rightBarColor = remember{ mutableStateOf(listOf("37", "44", "46", "255")) }
+                val positiveCandleColor = remember{ mutableStateOf(listOf("0", "255", "0", "255")) }
+                val negativeCandleColor = remember{ mutableStateOf(listOf("255", "0", "0", "255")) }
+                val dojiCandleColor = remember{ mutableStateOf(listOf("255", "255", "255", "255")) }
+                val endButtonColor = remember{ mutableStateOf(listOf("255", "255", "255", "255")) }
+                val priceColor = remember{ mutableStateOf(listOf("0", "128", "255", "255")) }
+                val selectedColor = remember{ mutableStateOf(listOf("106", "90", "205", "255")) }
+                val textColor = remember{ mutableStateOf(listOf("255", "255", "255", "255")) }
+                val separatorColor = remember{ mutableStateOf(listOf("71", "74", "81", "255")) }
+
+                val gradientStartColor = remember{ mutableStateOf(listOf("0", "0", "255", "255")) }
+                val gradientEndColor = remember{ mutableStateOf(listOf("0", "0", "255", "0")) }
+                val pricePathColor = remember{ mutableStateOf(listOf("0", "0", "255", "255")) }
 
                 // A surface container using the 'background' color from the theme
                 Surface(
@@ -226,6 +233,7 @@ class MainActivity : ComponentActivity() {
                             reDraw = reDraw.value,
                             liveUpdate = liveUpdate.value
                         )
+                        Text(text = "", modifier = Modifier.height(2.dp))
                         AreaChart(
                             areaFeed = areaFeed.value,
                             timeFormat = timeFormat.value,
@@ -237,8 +245,8 @@ class MainActivity : ComponentActivity() {
                             chartHeight = GetHeight() * chartHeight.value,
                             rightBarWidth = rightBarWidth.value,
                             bottomBarHeight = bottomBarHeight.value,
-                            candleWidth = candleWidth.value,
-                            gapWidth = gapWidth.value,
+                            priceWidth = priceWidth.value,
+                            pricePathThickness = pricePathThickness.value,
                             topOffset = topOffset.value,
                             rightBarTextSize = rightBarTextSize.value,
                             significantDigits = significantDigits.value,
@@ -254,6 +262,9 @@ class MainActivity : ComponentActivity() {
                             priceColor = Color(priceColor.value[0].toInt(), priceColor.value[1].toInt(), priceColor.value[2].toInt(), priceColor.value[3].toInt()),
                             selectedColor = Color(selectedColor.value[0].toInt(), selectedColor.value[1].toInt(), selectedColor.value[2].toInt(), selectedColor.value[3].toInt()),
                             endButtonColor = Color(endButtonColor.value[0].toInt(), endButtonColor.value[1].toInt(), endButtonColor.value[2].toInt(), endButtonColor.value[3].toInt()),
+                            gradientStartColor = Color(gradientStartColor.value[0].toInt(), gradientStartColor.value[1].toInt(), gradientStartColor.value[2].toInt(), gradientStartColor.value[3].toInt()),
+                            gradientEndColor = Color(gradientEndColor.value[0].toInt(), gradientEndColor.value[1].toInt(), gradientEndColor.value[2].toInt(), gradientEndColor.value[3].toInt()),
+                            pricePathColor = Color(pricePathColor.value[0].toInt(), pricePathColor.value[1].toInt(), pricePathColor.value[2].toInt(), pricePathColor.value[3].toInt()),
                             reDraw = reDraw.value,
                             liveUpdate = liveUpdate.value
                         )
@@ -472,6 +483,9 @@ class MainActivity : ComponentActivity() {
                             val newMinIndent = remember{mutableStateOf(minIndent.value.toString())}
                             val newDateOffset = remember{mutableStateOf(dateOffset.value.toString())}
 
+                            val newPriceWidth = remember{mutableStateOf(priceWidth.value.toString().removeSuffix(".dp"))}
+                            val newPricePathThickness = remember{mutableStateOf(pricePathThickness.value.toString().removeSuffix(".dp"))}
+
                             val newBackgroundColor = remember{mutableStateOf(backgroundColor.value.joinToString(", "))}
                             val newRightBarColor = remember{mutableStateOf(rightBarColor.value.joinToString(", "))}
                             val newPositiveCandleColor = remember{mutableStateOf(positiveCandleColor.value.joinToString(", "))}
@@ -482,6 +496,10 @@ class MainActivity : ComponentActivity() {
                             val newSelectedColor = remember{mutableStateOf(selectedColor.value.joinToString(", "))}
                             val newTextColor = remember{mutableStateOf(textColor.value.joinToString(", "))}
                             val newSeparatorColor = remember{mutableStateOf(separatorColor.value.joinToString(", "))}
+
+                            val newGradientStartColor = remember{mutableStateOf(gradientStartColor.value.joinToString(", "))}
+                            val newGradientEndColor = remember{mutableStateOf(gradientEndColor.value.joinToString(", "))}
+                            val newPricePathColor = remember{mutableStateOf(pricePathColor.value.joinToString(", "))}
 
                             Column(
                                 modifier = Modifier
@@ -724,6 +742,55 @@ class MainActivity : ComponentActivity() {
                                         placeholder = { Text("71, 74, 81, 255") }
                                     )
                                 }
+
+                                Divider(color = Color.Black, modifier = Modifier.padding(4.dp))
+
+                                Row {
+                                    TextField(
+                                        modifier = Modifier
+                                            .width(GetWidth() / 2),
+                                        label = {Text("Price Width: Dp")},
+                                        value = newPriceWidth.value,
+                                        onValueChange = {newText -> newPriceWidth.value = newText},
+                                        placeholder = { Text("10") }
+                                    )
+                                    TextField(
+                                        modifier = Modifier
+                                            .width(GetWidth() / 2),
+                                        label = {Text("Price Path Thickness: Dp")},
+                                        value = newPricePathThickness.value,
+                                        onValueChange = {newText -> newPricePathThickness.value = newText},
+                                        placeholder = { Text("4") }
+                                    )
+                                }
+                                Row {
+                                    TextField(
+                                        modifier = Modifier
+                                            .width(GetWidth() / 2),
+                                        label = {Text("Gradient Start Color: r,g,b,a")},
+                                        value = newGradientStartColor.value,
+                                        onValueChange = {newText -> newGradientStartColor.value = newText},
+                                        placeholder = { Text("0, 0, 255, 255") }
+                                    )
+                                    TextField(
+                                        modifier = Modifier
+                                            .width(GetWidth() / 2),
+                                        label = {Text("Gradient End Color: r,g,b,a")},
+                                        value = newGradientEndColor.value,
+                                        onValueChange = {newText -> newGradientEndColor.value = newText},
+                                        placeholder = { Text("0, 0, 255, 0") }
+                                    )
+                                }
+                                Row {
+                                    TextField(
+                                        modifier = Modifier
+                                            .width(GetWidth() / 2),
+                                        label = {Text("Price Path Color: r,g,b,a")},
+                                        value = newPricePathColor.value,
+                                        onValueChange = {newText -> newPricePathColor.value = newText},
+                                        placeholder = { Text("0, 0, 255, 255") }
+                                    )
+                                }
                                 Button(
                                     modifier = Modifier
                                     .width(GetWidth()),
@@ -745,6 +812,9 @@ class MainActivity : ComponentActivity() {
                                         minIndent.value = newMinIndent.value.toInt()
                                         dateOffset.value = newDateOffset.value.toInt()
 
+                                        priceWidth.value = newPriceWidth.value.toFloat().dp
+                                        pricePathThickness.value = newPricePathThickness.value.toFloat().dp
+
                                         backgroundColor.value = newBackgroundColor.value.filter { !it.isWhitespace() }.split(",")
                                         rightBarColor.value = newRightBarColor.value.filter { !it.isWhitespace() }.split(",")
                                         positiveCandleColor.value = newPositiveCandleColor.value.filter { !it.isWhitespace() }.split(",")
@@ -755,6 +825,10 @@ class MainActivity : ComponentActivity() {
                                         selectedColor.value = newSelectedColor.value.filter { !it.isWhitespace() }.split(",")
                                         textColor.value = newTextColor.value.filter { !it.isWhitespace() }.split(",")
                                         separatorColor.value = newSeparatorColor.value.filter { !it.isWhitespace() }.split(",")
+
+                                        gradientStartColor.value = newGradientStartColor.value.filter { !it.isWhitespace() }.split(",")
+                                        gradientEndColor.value = newGradientEndColor.value.filter { !it.isWhitespace() }.split(",")
+                                        pricePathColor.value = newPricePathColor.value.filter { !it.isWhitespace() }.split(",")
 
                                         reDraw.value = !reDraw.value
                                         showSettings.value = false

@@ -42,19 +42,19 @@ import java.util.Locale
  * at the bottom of the chart.
  * @param selectedTimeFormat List of strings responsible for formatting the date and time displayed
  * at the bottom of the chart when the candle is highlighted.
+ * @param chartWidth the width of the chart in Dp.
+ * @param chartHeight the height of the chart in Dp.
  * @param priceTagsCount the number of price tags, not counting the maximum and minimum price tags,
  * located to the right on the chart.
  * @param minIndent the minimum distance between the time tags, measured in the number of candles.
  * @param dateOffset offset of the time tags, measured in the number of candles.
- * @param chartWidth the width of the chart in Dp.
- * @param chartHeight the height of the chart in Dp.
  * @param candleWidth candle thickness in Dp.
  * @param gapWidth the thickness of the gap between the candles in Dp.
- * @param topOffset indentation at the top of the chart.
+ * @param topOffset indentation at the top of the chart in Dp.
  * @param rightBarWidth the thickness of the right panel in Dp.
  * @param rightBarTextSize the font size of the prices on the right panel.
  * @param significantDigits the number of digits after the decimal point in prices.
- * @param bottomBarHeight height of the bottom panel of the chart.
+ * @param bottomBarHeight height of the bottom panel of the chart in Dp.
  * @param dojiCandleThickness the thickness of the doji-candle body in Dp.
  * @param priceLineThickness the thickness of the last price line in Dp.
  * @param priceLineStyle the effect of the last price line.
@@ -72,11 +72,11 @@ fun CandlestickChart(
     candleFeed: MutableList<CandleFeed>,
     timeFormat: List<String>,
     selectedTimeFormat: List<String>,
+    chartWidth: Dp = 300.dp,
+    chartHeight: Dp = 300.dp,
     priceTagsCount: Int = 4,
     minIndent: Int = 12,
     dateOffset: Int = 1,
-    chartWidth: Dp = 300.dp,
-    chartHeight: Dp = 300.dp,
     candleWidth: Dp = 8.dp,
     gapWidth: Dp = 2.dp,
     topOffset: Dp = 8.dp,
@@ -241,7 +241,9 @@ fun CandlestickChart(
         return maxPrice
     }
 
-    if (candleFeed.isNotEmpty()) {
+    if (candleFeed.isNotEmpty() && candleFeed.size * (candleWidth.value.dpToFloat() + gapWidth.value.dpToFloat()) < 260000) {
+        Log.d("debug", "ConstraintLayout limitation = ${candleFeed.size * (candleWidth.value.dpToFloat() + gapWidth.value.dpToFloat())}")
+
         val candlesCount = remember {
             mutableStateOf(candleFeed.size)
         }
@@ -399,7 +401,7 @@ fun CandlestickChart(
                             val selectedPos = it.x
                             //Log.d("debug", "selectedPos: " + selectedPos)
                             if (scrollState.value != 0) {
-                                if (selectedPos < (chartWidthInPx.value - rightBarWidthInPx.value + scrollState.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
+                                if (selectedPos < (chartWidthInPx.value - rightBarWidthInPx.value + scrollState.value - 1)) {
                                     selectedCandle.value =
                                         (selectedPos / (candleWithSpaceInDp.value)
                                             .toString()
@@ -408,7 +410,7 @@ fun CandlestickChart(
                                             .dpToFloat()).toInt()
                                 }
                             } else {
-                                if (selectedPos < (candleWithSpaceInPx.value * candlesCount.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
+                                if (selectedPos < (candleWithSpaceInPx.value * candlesCount.value - 1)) {
                                     selectedCandle.value =
                                         (selectedPos / (candleWithSpaceInDp.value)
                                             .toString()
@@ -433,7 +435,7 @@ fun CandlestickChart(
                                     .toInt()
                                 //Log.d("debug", "selectedPos: " + selectedPos)
                                 if (scrollState.value != 0) {
-                                    if (selectedPos < (chartWidthInPx.value - rightBarWidthInPx.value + scrollState.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
+                                    if (selectedPos < (chartWidthInPx.value - rightBarWidthInPx.value + scrollState.value - 1)) {
                                         selectedCandle.value =
                                             (selectedPos / (candleWithSpaceInDp.value)
                                                 .toString()
@@ -442,7 +444,7 @@ fun CandlestickChart(
                                                 .dpToFloat()).toInt()
                                     }
                                 } else {
-                                    if (selectedPos < (candleWithSpaceInPx.value * candlesCount.value - 1)) { //-1 из-за округления IndexOutOfBoundsException
+                                    if (selectedPos < (candleWithSpaceInPx.value * candlesCount.value - 1)) {
                                         selectedCandle.value =
                                             (selectedPos / (candleWithSpaceInDp.value)
                                                 .toString()
@@ -491,11 +493,7 @@ fun CandlestickChart(
                         rightBarWidth = rightBarWidth,
                         candleWidth = candleWidth,
                         gapWidth = gapWidth,
-                        bottomBarHeight = bottomBarHeight
-                            .toString()
-                            .removeSuffix(".dp")
-                            .toFloat()
-                            .dpToFloat(),
+                        bottomBarHeight = bottomBarHeight.toPx(),
                         positiveCandleColor = positiveCandleColor,
                         negativeCandleColor = negativeCandleColor,
                         dojiCandleColor = dojiCandleColor,
@@ -729,7 +727,7 @@ fun CandlestickChart(
                 }
             }
         }
-    } else {
+    } else if (candleFeed.isEmpty()) {
         ConstraintLayout {
             Box(modifier = Modifier
                 .size(width = chartWidth, height = chartHeight)
@@ -742,6 +740,21 @@ fun CandlestickChart(
                     text = "No data",
                     color = textColor,
                     fontSize = 24.sp)
+            }
+        }
+    } else {
+        ConstraintLayout {
+            Box(modifier = Modifier
+                .size(width = chartWidth, height = chartHeight)
+                .background(backgroundColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(modifier = Modifier
+                    .fillMaxWidth(1f),
+                    textAlign = TextAlign.Center,
+                    text = "Too much data. \nMaximum quantity = ${(260000 / (candleWidth.value.dpToFloat() + gapWidth.value.dpToFloat())).toInt()}",
+                    color = textColor,
+                    fontSize = 16.sp)
             }
         }
     }
