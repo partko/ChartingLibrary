@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
+    id 'maven-publish'
 }
 
 android {
@@ -60,4 +61,52 @@ dependencies {
     implementation "androidx.compose.material:material:$compose_ui_version"
 
     implementation "androidx.constraintlayout:constraintlayout-compose:1.0.1"
+}
+
+
+//apply from: rootProject.file("github.properties")
+def githubProperties = new Properties()
+githubProperties.load(new FileInputStream(rootProject.file("github.properties")))
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+
+                // Replace with your own group ID.
+                groupId 'com.github.partko'
+
+                // Replace with the name of your library
+                artifactId 'charting-library'
+                version '1.0.0'
+            }
+
+            debug(MavenPublication) {
+                from components.debug
+
+                // Replace with your own group ID.
+                groupId 'com.github.partko'
+
+                // Replace with the name of your library
+                artifactId 'charting-library'
+                version '1.0.0'
+            }
+        }
+
+        repositories {
+            maven {
+                name = "GitHubPackages"
+
+                url = uri("https://maven.pkg.github.com/108072518/ChartingLibrary")
+
+                credentials {
+//                    username = ext.usr
+//                    password = ext.key
+                    username = githubProperties['ext.usr'] //?: System.getenv("GPR_USER")
+                    password = githubProperties['ext.key'] //?: System.getenv("GPR_API_KEY")
+                }
+            }
+        }
+    }
 }

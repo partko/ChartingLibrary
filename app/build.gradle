@@ -48,6 +48,9 @@ android {
 }
 
 dependencies {
+
+    //classpath 'com.android.tools.build:gradle:7.5.0'
+
     implementation 'com.android.volley:volley:1.2.1'
     implementation "androidx.constraintlayout:constraintlayout-compose:1.0.1"
 
