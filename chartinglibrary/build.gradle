@@ -85,7 +85,7 @@ afterEvaluate {
             maven {
                 name = "GitHubPackages"
 
-                url = uri("https://maven.pkg.github.com/wyttnik/ChartingLibrary")
+                url = uri("https://maven.pkg.github.com/partko/ChartingLibrary")
 
                 credentials {
                     username = githubProperties['gpr.usr'] ?: System.getenv("GPR_USER")
