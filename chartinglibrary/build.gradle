@@ -74,25 +74,9 @@ githubProperties.load(new FileInputStream(rootProject.file("github.properties"))
 afterEvaluate {
     publishing {
         publications {
-            release(MavenPublication) {
-                from components.release
-
-                // Replace with your own group ID.
-                groupId 'com.github.partko'
-
-                // Replace with the name of your library
-                artifactId 'charting-library'
-                version '1.0.0'
-            }
-
-            debug(MavenPublication) {
-                from components.debug
-
-                // Replace with your own group ID.
-                groupId 'com.github.partko'
-
-                // Replace with the name of your library
-                artifactId 'charting-library'
+            bar(MavenPublication) {
+                groupId 'com.partko.libraries'
+                artifactId 'chartinglibrary'
                 version '1.0.0'
             }
         }
@@ -101,13 +85,11 @@ afterEvaluate {
             maven {
                 name = "GitHubPackages"
 
-                url = uri("https://maven.pkg.github.com/108072518/ChartingLibrary")
+                url = uri("https://maven.pkg.github.com/wyttnik/ChartingLibrary")
 
                 credentials {
-//                    username = ext.usr
-//                    password = ext.key
-                    username = githubProperties['ext.usr'] //?: System.getenv("GPR_USER")
-                    password = githubProperties['ext.key'] //?: System.getenv("GPR_API_KEY")
+                    username = githubProperties['gpr.usr'] ?: System.getenv("GPR_USER")
+                    password = githubProperties['gpr.key'] ?: System.getenv("GPR_API_KEY")
                 }
             }
         }
